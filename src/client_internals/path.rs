@@ -218,10 +218,6 @@ impl Jenkins {
             ("/view", 3) => Path::View {
                 name: Name::UrlEncodedName(&path[6..(path.len() - 1)]),
             },
-            ("/job", 3) => Path::Job {
-                name: Name::UrlEncodedName(&path[5..(path.len() - 1)]),
-                configuration: None,
-            },
             ("/job", 4) => {
                 let last_part = &path[(slashes[2] + 1)..(path.len() - 1)];
                 let number = last_part.parse();
@@ -285,6 +281,26 @@ impl Jenkins {
             ("/queue", 4) => Path::QueueItem {
                 id: path[(slashes[2] + 1)..(path.len() - 1)].parse().unwrap(),
             },
+            ("/job", 0..4) => Path::Job {
+                name: Name::UrlEncodedName(&path[5..(path.len() - 1)]),
+                configuration: None,
+            },
+            ("/job", n) => {
+                if &path[slashes[n - 4]..slashes[n - 3]] == "/job" {
+                    if let Ok(build_number) = path[(slashes[n - 2] + 1)..slashes[n - 1]].parse() {
+                        return Path::Build {
+                            job_name: Name::UrlEncodedName(&path[5..slashes[n - 2]]),
+                            number: build::BuildNumber::Number(build_number),
+                            configuration: None,
+                        };
+                    }
+                }
+
+                Path::Job {
+                    name: Name::UrlEncodedName(&path[5..(path.len() - 1)]),
+                    configuration: None,
+                }
+            }
             (_, _) => Path::Raw { path },
         }
     }
