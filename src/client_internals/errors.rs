@@ -3,7 +3,7 @@ use std::fmt;
 use thiserror::Error;
 
 /// Wrapper `Result` type
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /// Errors that can be thrown
 #[derive(Debug, Error)]
