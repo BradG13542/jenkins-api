@@ -24,13 +24,13 @@
 //!
 //! use jenkins_api::JenkinsBuilder;
 //!
-//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! #[tokio::main(flavor = "current_thread")]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let jenkins = JenkinsBuilder::new("http://localhost:8080")
 //!         .with_user("user", Some("password"))
 //!         .build()?;
-//!
-//!     let job = jenkins.get_job("job name")?;
-//!     let build = job.last_build.as_ref().unwrap().get_full_build(&jenkins)?;
+//!     let job = jenkins.get_job("job name").await.unwrap();
+//!     let build = job.last_build.as_ref().unwrap().get_full_build(&jenkins).await.unwrap();
 //!
 //!     println!(
 //!         "last build for job {} at {} was {:?}",

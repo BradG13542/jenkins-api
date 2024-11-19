@@ -91,13 +91,15 @@ where
     for<'de> T: Deserialize<'de>,
 {
     /// Get the full details of a `Job` matching the `ShortJob`
-    pub fn get_full_job(&self, jenkins_client: &Jenkins) -> Result<T> {
+    pub async fn get_full_job(&self, jenkins_client: &Jenkins) -> Result<T> {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::Job { .. } = path {
-            return Ok(jenkins_client.get(&path)?.json()?);
+            let response = jenkins_client.get(&path).await?.json().await?;
+            return Ok(response);
         } else if let Path::InFolder { path: sub_path, .. } = &path {
             if let Path::Job { .. } = sub_path.as_ref() {
-                return Ok(jenkins_client.get(&path)?.json()?);
+                let response = jenkins_client.get(&path).await?.json().await?;
+                return Ok(response);
             }
         }
         Err(client::Error::InvalidUrl {
@@ -140,123 +142,154 @@ pub trait Job {
     fn name(&self) -> &str;
 
     /// Enable a `Job`. It may need to be refreshed as it may have been updated
-    fn enable(&self, jenkins_client: &Jenkins) -> Result<()> {
-        let path = jenkins_client.url_to_path(self.url());
-        if let Path::Job {
-            name,
-            configuration: None,
-        } = path
-        {
-            let _ = jenkins_client.post(&Path::JobEnable { name })?;
-            Ok(())
-        } else {
-            Err(client::Error::InvalidUrl {
-                url: self.url().to_string(),
-                expected: client::error::ExpectedType::Job,
+    fn enable(&self, jenkins_client: &Jenkins) -> impl std::future::Future<Output = Result<()>> {
+        async move {
+            let path = jenkins_client.url_to_path(self.url());
+            if let Path::Job {
+                name,
+                configuration: None,
+            } = path
+            {
+                let _ = jenkins_client.post(&Path::JobEnable { name }).await?;
+                Ok(())
+            } else {
+                Err(client::Error::InvalidUrl {
+                    url: self.url().to_string(),
+                    expected: client::error::ExpectedType::Job,
+                }
+                .into())
             }
-            .into())
         }
     }
 
     /// Disable a `Job`. It may need to be refreshed as it may have been updated
-    fn disable(&self, jenkins_client: &Jenkins) -> Result<()> {
-        let path = jenkins_client.url_to_path(self.url());
-        if let Path::Job {
-            name,
-            configuration: None,
-        } = path
-        {
-            let _ = jenkins_client.post(&Path::JobDisable { name })?;
-            Ok(())
-        } else {
-            Err(client::Error::InvalidUrl {
-                url: self.url().to_string(),
-                expected: client::error::ExpectedType::Job,
+    fn disable(&self, jenkins_client: &Jenkins) -> impl std::future::Future<Output = Result<()>> {
+        async move {
+            let path = jenkins_client.url_to_path(self.url());
+            if let Path::Job {
+                name,
+                configuration: None,
+            } = path
+            {
+                let _ = jenkins_client.post(&Path::JobDisable { name }).await?;
+                Ok(())
+            } else {
+                Err(client::Error::InvalidUrl {
+                    url: self.url().to_string(),
+                    expected: client::error::ExpectedType::Job,
+                }
+                .into())
             }
-            .into())
         }
     }
 
     /// Add this job to the view `view_name`
-    fn add_to_view<'a, V>(&self, jenkins_client: &Jenkins, view_name: V) -> Result<()>
+    fn add_to_view<'a, V>(
+        &self,
+        jenkins_client: &Jenkins,
+        view_name: V,
+    ) -> impl std::future::Future<Output = Result<()>>
     where
         V: Into<ViewName<'a>>,
     {
-        let path = jenkins_client.url_to_path(self.url());
-        if let Path::Job {
-            name,
-            configuration: None,
-        } = path
-        {
-            let _ = jenkins_client.post(&Path::AddJobToView {
-                job_name: name,
-                view_name: Name::Name(view_name.into().0),
-            })?;
-            Ok(())
-        } else {
-            Err(client::Error::InvalidUrl {
-                url: self.url().to_string(),
-                expected: client::error::ExpectedType::Job,
+        async move {
+            let path = jenkins_client.url_to_path(self.url());
+            if let Path::Job {
+                name,
+                configuration: None,
+            } = path
+            {
+                let _ = jenkins_client
+                    .post(&Path::AddJobToView {
+                        job_name: name,
+                        view_name: Name::Name(view_name.into().0),
+                    })
+                    .await?;
+                Ok(())
+            } else {
+                Err(client::Error::InvalidUrl {
+                    url: self.url().to_string(),
+                    expected: client::error::ExpectedType::Job,
+                }
+                .into())
             }
-            .into())
         }
     }
 
     /// Remove this job from the view `view_name`
-    fn remove_from_view<'a, V>(&self, jenkins_client: &Jenkins, view_name: V) -> Result<()>
+    fn remove_from_view<'a, V>(
+        &self,
+        jenkins_client: &Jenkins,
+        view_name: V,
+    ) -> impl std::future::Future<Output = Result<()>>
     where
         V: Into<ViewName<'a>>,
     {
-        let path = jenkins_client.url_to_path(self.url());
-        if let Path::Job {
-            name,
-            configuration: None,
-        } = path
-        {
-            let _ = jenkins_client.post(&Path::RemoveJobFromView {
-                job_name: name,
-                view_name: Name::Name(view_name.into().0),
-            })?;
-            Ok(())
-        } else {
-            Err(client::Error::InvalidUrl {
-                url: self.url().to_string(),
-                expected: client::error::ExpectedType::Job,
+        async move {
+            let path = jenkins_client.url_to_path(self.url());
+            if let Path::Job {
+                name,
+                configuration: None,
+            } = path
+            {
+                let _ = jenkins_client
+                    .post(&Path::RemoveJobFromView {
+                        job_name: name,
+                        view_name: Name::Name(view_name.into().0),
+                    })
+                    .await?;
+                Ok(())
+            } else {
+                Err(client::Error::InvalidUrl {
+                    url: self.url().to_string(),
+                    expected: client::error::ExpectedType::Job,
+                }
+                .into())
             }
-            .into())
         }
     }
 
     /// Get the config.xml file for this job
-    fn get_config_xml(&self, jenkins_client: &Jenkins) -> Result<String> {
-        let path = jenkins_client.url_to_path(self.url());
-        if let Path::Job { name, .. } = path {
-            return Ok(jenkins_client
-                .get(&Path::ConfigXML {
-                    job_name: name,
-                    folder_name: None,
-                })?
-                .text()?);
-        } else if let Path::InFolder {
-            path: sub_path,
-            folder_name,
-        } = &path
-        {
-            if let Path::Job { name, .. } = sub_path.as_ref() {
-                return Ok(jenkins_client
+    fn get_config_xml(
+        &self,
+        jenkins_client: &Jenkins,
+    ) -> impl std::future::Future<Output = Result<String>> {
+        async move {
+            let path = jenkins_client.url_to_path(self.url());
+            if let Path::Job { name, .. } = path {
+                let response = jenkins_client
                     .get(&Path::ConfigXML {
-                        job_name: name.clone(),
-                        folder_name: Some(folder_name.clone()),
-                    })?
-                    .text()?);
+                        job_name: name,
+                        folder_name: None,
+                    })
+                    .await?
+                    .text()
+                    .await?;
+                return Ok(response);
+            } else if let Path::InFolder {
+                path: sub_path,
+                folder_name,
+            } = &path
+            {
+                if let Path::Job { name, .. } = sub_path.as_ref() {
+                    let response = jenkins_client
+                        .get(&Path::ConfigXML {
+                            job_name: name.clone(),
+                            folder_name: Some(folder_name.clone()),
+                        })
+                        .await?
+                        .text()
+                        .await?;
+                    return Ok(response);
+                }
             }
-        }
 
-        Err(client::Error::InvalidUrl {
-            url: self.url().to_string(),
-            expected: client::error::ExpectedType::Build,
+            Err(client::Error::InvalidUrl {
+                url: self.url().to_string(),
+                expected: client::error::ExpectedType::Build,
+            }
+            .into())
         }
-        .into())
     }
 }
 
@@ -475,8 +508,11 @@ impl CommonJob {}
 /// Common trait for jobs that can be build
 pub trait BuildableJob: Job + Sized {
     /// Build this job
-    fn build(&self, jenkins_client: &Jenkins) -> Result<ShortQueueItem> {
-        self.builder(jenkins_client)?.send()
+    fn build(
+        &self,
+        jenkins_client: &Jenkins,
+    ) -> impl std::future::Future<Output = Result<ShortQueueItem>> {
+        async move { self.builder(jenkins_client)?.send().await }
     }
 
     /// Create a `JobBuilder` to setup a build of a `Job`
@@ -491,21 +527,23 @@ pub trait BuildableJob: Job + Sized {
 /// Common trait for jobs that can poll a SCM
 pub trait SCMPollable: Job + Sized {
     /// Poll configured SCM for changes
-    fn poll_scm(&self, jenkins_client: &Jenkins) -> Result<()> {
-        let path = jenkins_client.url_to_path(self.url());
-        if let Path::Job {
-            name,
-            configuration: None,
-        } = path
-        {
-            let _ = jenkins_client.post(&Path::PollSCMJob { name })?;
-            Ok(())
-        } else {
-            Err(client::Error::InvalidUrl {
-                url: self.url().to_string(),
-                expected: client::error::ExpectedType::Job,
+    fn poll_scm(&self, jenkins_client: &Jenkins) -> impl std::future::Future<Output = Result<()>> {
+        async move {
+            let path = jenkins_client.url_to_path(self.url());
+            if let Path::Job {
+                name,
+                configuration: None,
+            } = path
+            {
+                let _ = jenkins_client.post(&Path::PollSCMJob { name }).await?;
+                Ok(())
+            } else {
+                Err(client::Error::InvalidUrl {
+                    url: self.url().to_string(),
+                    expected: client::error::ExpectedType::Job,
+                }
+                .into())
             }
-            .into())
         }
     }
 }
