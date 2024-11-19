@@ -25,28 +25,35 @@ pub struct ComputerSet {
 
 impl Jenkins {
     /// Get a `ComputerSet`
-    pub fn get_nodes(&self) -> Result<ComputerSet> {
-        Ok(self.get(&Path::Computers)?.json()?)
+    pub async fn get_nodes(&self) -> Result<ComputerSet> {
+        let response = self.get(&Path::Computers).await?.json().await?;
+        Ok(response)
     }
 
     /// Get a `Computer`
-    pub fn get_node<'a, C>(&self, computer_name: C) -> Result<computer::CommonComputer>
+    pub async fn get_node<'a, C>(&self, computer_name: C) -> Result<computer::CommonComputer>
     where
         C: Into<computer::ComputerName<'a>>,
     {
-        Ok(self
+        let response = self
             .get(&Path::Computer {
                 name: Name::Name(computer_name.into().0),
-            })?
-            .json()?)
+            })
+            .await?
+            .json()
+            .await?;
+        Ok(response)
     }
 
     /// Get the master `Computer`
-    pub fn get_master_node(&self) -> Result<computer::MasterComputer> {
-        Ok(self
+    pub async fn get_master_node(&self) -> Result<computer::MasterComputer> {
+        let response = self
             .get(&Path::Computer {
                 name: Name::Name("(master)"),
-            })?
-            .json()?)
+            })
+            .await?
+            .json()
+            .await?;
+        Ok(response)
     }
 }
