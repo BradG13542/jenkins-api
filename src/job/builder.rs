@@ -83,7 +83,7 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
     }
 
     /// Trigger the build
-    pub fn send(self) -> Result<ShortQueueItem> {
+    pub async fn send(self) -> Result<ShortQueueItem> {
         let response = match (self.token, self.parameters) {
             (Some(token), None) => {
                 let bound_cause = self.cause.unwrap_or("");
@@ -97,12 +97,14 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
                     qps.push(("delay", &bound_delay));
                 }
 
-                self.jenkins_client.get_with_params(
-                    &Path::BuildJob {
-                        name: self.job_name,
-                    },
-                    &qps,
-                )?
+                self.jenkins_client
+                    .get_with_params(
+                        &Path::BuildJob {
+                            name: self.job_name,
+                        },
+                        &qps,
+                    )
+                    .await?
             }
             (Some(token), Some(parameters)) => {
                 let bound_delay = format!("{}", self.delay.unwrap_or(0));
@@ -110,13 +112,15 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
                 if self.delay.is_some() {
                     qps.push(("delay", &bound_delay));
                 }
-                self.jenkins_client.post_with_body(
-                    &Path::BuildJobWithParameters {
-                        name: self.job_name,
-                    },
-                    format!("token={}&{}", token, parameters),
-                    &qps,
-                )?
+                self.jenkins_client
+                    .post_with_body(
+                        &Path::BuildJobWithParameters {
+                            name: self.job_name,
+                        },
+                        format!("token={}&{}", token, parameters),
+                        &qps,
+                    )
+                    .await?
             }
             (None, None) => {
                 let bound_delay = format!("{}", self.delay.unwrap_or(0));
@@ -124,13 +128,15 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
                 if self.delay.is_some() {
                     qps.push(("delay", &bound_delay));
                 }
-                self.jenkins_client.post_with_body(
-                    &Path::BuildJob {
-                        name: self.job_name,
-                    },
-                    "",
-                    &qps,
-                )?
+                self.jenkins_client
+                    .post_with_body(
+                        &Path::BuildJob {
+                            name: self.job_name,
+                        },
+                        "",
+                        &qps,
+                    )
+                    .await?
             }
             (None, Some(parameters)) => {
                 let bound_delay = format!("{}", self.delay.unwrap_or(0));
@@ -138,13 +144,15 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
                 if self.delay.is_some() {
                     qps.push(("delay", &bound_delay));
                 }
-                self.jenkins_client.post_with_body(
-                    &Path::BuildJobWithParameters {
-                        name: self.job_name,
-                    },
-                    parameters,
-                    &qps,
-                )?
+                self.jenkins_client
+                    .post_with_body(
+                        &Path::BuildJobWithParameters {
+                            name: self.job_name,
+                        },
+                        parameters,
+                        &qps,
+                    )
+                    .await?
             }
         };
         if let Some(location) = response.headers().get(LOCATION) {

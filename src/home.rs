@@ -146,7 +146,7 @@ pub struct Home {
 
 impl Jenkins {
     /// Get Jenkins `Home`
-    pub fn get_home(&self) -> Result<Home> {
-        Ok(self.get(&Path::Home)?.json()?)
+    pub async fn get_home(&self) -> Result<Home> {
+        Ok(self.get(&Path::Home).await?.json().await?)
     }
 }

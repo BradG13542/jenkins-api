@@ -5,10 +5,7 @@ use std::fmt::Debug;
 use log::{debug, warn};
 use regex::Regex;
 use reqwest::{
-    blocking::{Body, Client, RequestBuilder, Response},
-    header::HeaderValue,
-    header::CONTENT_TYPE,
-    StatusCode,
+    header::HeaderValue, header::CONTENT_TYPE, Body, Client, RequestBuilder, Response, StatusCode,
 };
 use serde::Serialize;
 
@@ -85,14 +82,16 @@ impl Jenkins {
         format!("{}{}", self.url, endpoint)
     }
 
-    fn send(&self, mut request_builder: RequestBuilder) -> Result<Response> {
+    async fn send(&self, mut request_builder: RequestBuilder) -> Result<Response> {
         if let Some(ref user) = self.user {
             request_builder =
                 request_builder.basic_auth(user.username.clone(), user.password.clone());
         }
         let query = request_builder.build()?;
         debug!("sending {} {}", query.method(), query.url());
-        Ok(self.client.execute(query)?)
+
+        let response = self.client.execute(query).await?;
+        Ok(response)
     }
 
     fn error_for_status(response: Response) -> Result<Response> {
@@ -103,37 +102,42 @@ impl Jenkins {
         Ok(response.error_for_status()?)
     }
 
-    pub(crate) fn get(&self, path: &Path) -> Result<Response> {
+    pub(crate) async fn get(&self, path: &Path<'_>) -> Result<Response> {
         self.get_with_params(path, [("depth", &self.depth.to_string())])
+            .await
     }
 
-    pub(crate) fn get_with_params<T: Serialize>(&self, path: &Path, qps: T) -> Result<Response> {
+    pub(crate) async fn get_with_params<T: Serialize>(
+        &self,
+        path: &Path<'_>,
+        qps: T,
+    ) -> Result<Response> {
         let query = self
             .client
             .get(self.url_api_json(&path.to_string()))
             .query(&qps);
-        let resp = self.send(query)?;
+        let resp = self.send(query).await?;
         Self::error_for_status(resp)
     }
 
-    pub(crate) fn post(&self, path: &Path) -> Result<Response> {
+    pub(crate) async fn post(&self, path: &Path<'_>) -> Result<Response> {
         let mut request_builder = self.client.post(self.url(&path.to_string()));
 
-        request_builder = self.add_csrf_to_request(request_builder)?;
+        request_builder = self.add_csrf_to_request(request_builder).await?;
 
-        let resp = self.send(request_builder)?;
+        let resp = self.send(request_builder).await?;
         Self::error_for_status(resp)
     }
 
-    pub(crate) fn post_with_body<T: Into<Body> + Debug>(
+    pub(crate) async fn post_with_body<T: Into<Body> + Debug>(
         &self,
-        path: &Path,
+        path: &Path<'_>,
         body: T,
         qps: &[(&str, &str)],
     ) -> Result<Response> {
         let mut request_builder = self.client.post(self.url(&path.to_string()));
 
-        request_builder = self.add_csrf_to_request(request_builder)?;
+        request_builder = self.add_csrf_to_request(request_builder).await?;
 
         request_builder = request_builder.header(
             CONTENT_TYPE,
@@ -141,7 +145,7 @@ impl Jenkins {
         );
         debug!("{:?}", body);
         request_builder = request_builder.query(qps).body(body);
-        let response = self.send(request_builder)?;
+        let response = self.send(request_builder).await?;
 
         if response.status() == StatusCode::INTERNAL_SERVER_ERROR {
             // get the error before reading the body. In this case it can't be OK
@@ -150,7 +154,7 @@ impl Jenkins {
                 Err(err) => err,
             };
 
-            let body = response.text()?;
+            let body = response.text().await?;
 
             let re = Regex::new(r"java.lang.([a-zA-Z]+): (.*)").unwrap();
             if let Some(captures) = re.captures(&body) {
@@ -201,9 +205,9 @@ impl Jenkins {
 #[cfg(test)]
 mod tests {
 
-    #[test]
-    fn can_post_with_body() {
-        let mut server = mockito::Server::new();
+    #[tokio::test]
+    async fn can_post_with_body() {
+        let mut server = mockito::Server::new_async().await;
         let jenkins_client = crate::JenkinsBuilder::new(&server.url())
             .disable_csrf()
             .build()
@@ -211,16 +215,17 @@ mod tests {
 
         let _mock = server.mock("POST", "/mypath").with_body("ok").create();
 
-        let response =
-            jenkins_client.post_with_body(&super::Path::Raw { path: "/mypath" }, "body", &[]);
+        let response = jenkins_client
+            .post_with_body(&super::Path::Raw { path: "/mypath" }, "body", &[])
+            .await;
 
         assert!(response.is_ok());
-        assert_eq!(response.unwrap().text().unwrap(), "ok");
+        assert_eq!(response.unwrap().text().await.unwrap(), "ok");
     }
 
-    #[test]
-    fn can_post_with_body_and_get_error_state() {
-        let mut server = mockito::Server::new();
+    #[tokio::test]
+    async fn can_post_with_body_and_get_error_state() {
+        let mut server = mockito::Server::new_async().await;
         let jenkins_client = crate::JenkinsBuilder::new(&server.url())
             .disable_csrf()
             .build()
@@ -232,13 +237,15 @@ mod tests {
             .with_body("hviqsuvnqsodjfsqjdgo java.lang.IllegalStateException: my error\nvzfjsd")
             .create();
 
-        let response = jenkins_client.post_with_body(
-            &super::Path::Raw {
-                path: "/error-IllegalStateException",
-            },
-            "body",
-            &[],
-        );
+        let response = jenkins_client
+            .post_with_body(
+                &super::Path::Raw {
+                    path: "/error-IllegalStateException",
+                },
+                "body",
+                &[],
+            )
+            .await;
 
         assert!(response.is_err());
         assert_eq!(
@@ -247,9 +254,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn can_post_with_body_and_get_error_argument() {
-        let mut server = mockito::Server::new();
+    #[tokio::test]
+    async fn can_post_with_body_and_get_error_argument() {
+        let mut server = mockito::Server::new_async().await;
         let jenkins_client = crate::JenkinsBuilder::new(&server.url())
             .disable_csrf()
             .build()
@@ -261,13 +268,15 @@ mod tests {
             .with_body("hviqsuvnqsodjfsqjdgo java.lang.IllegalArgumentException: my error\nvzfjsd")
             .create();
 
-        let response = jenkins_client.post_with_body(
-            &super::Path::Raw {
-                path: "/error-IllegalArgumentException",
-            },
-            "body",
-            &[],
-        );
+        let response = jenkins_client
+            .post_with_body(
+                &super::Path::Raw {
+                    path: "/error-IllegalArgumentException",
+                },
+                "body",
+                &[],
+            )
+            .await;
 
         assert!(response.is_err());
         assert_eq!(
@@ -276,9 +285,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn can_post_with_body_and_get_error_new() {
-        let mut server = mockito::Server::new();
+    #[tokio::test]
+    async fn can_post_with_body_and_get_error_new() {
+        let mut server = mockito::Server::new_async().await;
         let jenkins_client = crate::JenkinsBuilder::new(&server.url())
             .disable_csrf()
             .build()
@@ -290,13 +299,15 @@ mod tests {
             .with_body("hviqsuvnqsodjfsqjdgo java.lang.NewException: my error\nvzfjsd")
             .create();
 
-        let response = jenkins_client.post_with_body(
-            &super::Path::Raw {
-                path: "/error-NewException",
-            },
-            "body",
-            &[],
-        );
+        let response = jenkins_client
+            .post_with_body(
+                &super::Path::Raw {
+                    path: "/error-NewException",
+                },
+                "body",
+                &[],
+            )
+            .await;
 
         assert!(response.is_err());
         assert_eq!(
@@ -308,9 +319,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn can_post_with_query_params() {
-        let mut server = mockito::Server::new();
+    #[tokio::test]
+    async fn can_post_with_query_params() {
+        let mut server = mockito::Server::new_async().await;
         let jenkins_client = crate::JenkinsBuilder::new(&server.url())
             .disable_csrf()
             .build()
@@ -318,14 +329,12 @@ mod tests {
 
         let mock = server.mock("POST", "/mypath?a=1").with_body("ok").create();
 
-        let response = jenkins_client.post_with_body(
-            &super::Path::Raw { path: "/mypath" },
-            "body",
-            &[("a", "1")],
-        );
+        let response = jenkins_client
+            .post_with_body(&super::Path::Raw { path: "/mypath" }, "body", &[("a", "1")])
+            .await;
 
         assert!(response.is_ok());
-        assert_eq!(response.unwrap().text().unwrap(), "ok");
+        assert_eq!(response.unwrap().text().await.unwrap(), "ok");
         mock.assert()
     }
 }

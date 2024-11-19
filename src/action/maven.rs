@@ -38,13 +38,14 @@ pub struct ShortMavenArtifactRecord {
 }
 impl ShortMavenArtifactRecord {
     /// Get the full report of a `MavenArtifactRecord` matching the `ShortMavenArtifactRecord`
-    pub fn get_full_artifact_record(
+    pub async fn get_full_artifact_record(
         &self,
         jenkins_client: &Jenkins,
     ) -> Result<MavenArtifactRecord> {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::MavenArtifactRecord { .. } = path {
-            Ok(jenkins_client.get(&path)?.json()?)
+            let response = jenkins_client.get(&path).await?.json().await?;
+            Ok(response)
         } else {
             Err(client::Error::InvalidUrl {
                 url: self.url.clone(),

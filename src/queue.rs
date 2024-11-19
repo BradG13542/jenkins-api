@@ -25,10 +25,10 @@ pub struct ShortQueueItem {
 }
 impl ShortQueueItem {
     /// Get the full details of a `QueueItem` matching the `ShortQueueItem`
-    pub fn get_full_queue_item(&self, jenkins_client: &Jenkins) -> Result<QueueItem> {
+    pub async fn get_full_queue_item(&self, jenkins_client: &Jenkins) -> Result<QueueItem> {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::QueueItem { .. } = path {
-            Ok(jenkins_client.get(&path)?.json()?)
+            Ok(jenkins_client.get(&path).await?.json().await?)
         } else {
             Err(client::Error::InvalidUrl {
                 url: self.url.clone(),
@@ -72,10 +72,10 @@ pub struct QueueItem {
 }
 impl QueueItem {
     /// Refresh a `QueueItem`, consuming the existing one and returning a new `QueueItem`
-    pub fn refresh_item(self, jenkins_client: &Jenkins) -> Result<Self> {
+    pub async fn refresh_item(self, jenkins_client: &Jenkins) -> Result<Self> {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::QueueItem { .. } = path {
-            Ok(jenkins_client.get(&path)?.json()?)
+            Ok(jenkins_client.get(&path).await?.json().await?)
         } else {
             Err(client::Error::InvalidUrl {
                 url: self.url.clone(),
@@ -96,12 +96,12 @@ pub struct Queue {
 
 impl Jenkins {
     /// Get the Jenkins items queue
-    pub fn get_queue(&self) -> Result<Queue> {
-        Ok(self.get(&Path::Queue)?.json()?)
+    pub async fn get_queue(&self) -> Result<Queue> {
+        Ok(self.get(&Path::Queue).await?.json().await?)
     }
 
     /// Get a queue item from it's ID
-    pub fn get_queue_item(&self, id: i32) -> Result<QueueItem> {
-        Ok(self.get(&Path::QueueItem { id })?.json()?)
+    pub async fn get_queue_item(&self, id: i32) -> Result<QueueItem> {
+        Ok(self.get(&Path::QueueItem { id }).await?.json().await?)
     }
 }

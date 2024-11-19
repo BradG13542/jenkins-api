@@ -1,4 +1,4 @@
-use reqwest::{blocking::RequestBuilder, header::HeaderName, header::HeaderValue};
+use reqwest::{header::HeaderName, header::HeaderValue, RequestBuilder};
 use serde::Deserialize;
 
 use super::{path::Path, Jenkins};
@@ -12,12 +12,12 @@ pub(crate) struct Crumb {
 }
 
 impl Jenkins {
-    pub(crate) fn add_csrf_to_request(
+    pub(crate) async fn add_csrf_to_request(
         &self,
         request_builder: RequestBuilder,
     ) -> Result<RequestBuilder> {
         if self.csrf_enabled {
-            let crumb = self.get_csrf()?;
+            let crumb = self.get_csrf().await?;
             Ok(request_builder.header(
                 HeaderName::from_lowercase(crumb.crumb_request_field.to_lowercase().as_bytes())?,
                 HeaderValue::from_str(&crumb.crumb)?,
@@ -27,8 +27,8 @@ impl Jenkins {
         }
     }
 
-    pub(crate) fn get_csrf(&self) -> Result<Crumb> {
-        let crumb: Crumb = self.get(&Path::CrumbIssuer)?.json()?;
+    pub(crate) async fn get_csrf(&self) -> Result<Crumb> {
+        let crumb: Crumb = self.get(&Path::CrumbIssuer).await?.json().await?;
         Ok(crumb)
     }
 }

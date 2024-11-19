@@ -40,13 +40,15 @@ where
     for<'de> T: Deserialize<'de>,
 {
     /// Get the full details of a `Build` matching the `ShortBuild`
-    pub fn get_full_build(&self, jenkins_client: &Jenkins) -> Result<T> {
+    pub async fn get_full_build(&self, jenkins_client: &Jenkins) -> Result<T> {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::Build { .. } = path {
-            return Ok(jenkins_client.get(&path)?.json()?);
+            let response = jenkins_client.get(&path).await?.json().await?;
+            return Ok(response);
         } else if let Path::InFolder { path: sub_path, .. } = &path {
             if let Path::Build { .. } = sub_path.as_ref() {
-                return Ok(jenkins_client.get(&path)?.json()?);
+                let response = jenkins_client.get(&path).await?.json().await?;
+                return Ok(response);
             }
         }
         Err(client::Error::InvalidUrl {
@@ -172,96 +174,118 @@ pub trait Build {
     fn url(&self) -> &str;
 
     /// Get the `Job` from a `Build`
-    fn get_job(&self, jenkins_client: &Jenkins) -> Result<Self::ParentJob>
+    fn get_job(
+        &self,
+        jenkins_client: &Jenkins,
+    ) -> impl std::future::Future<Output = Result<Self::ParentJob>>
     where
         for<'de> Self::ParentJob: Deserialize<'de>,
     {
-        let path = jenkins_client.url_to_path(self.url());
-        if let Path::Build {
-            job_name,
-            configuration,
-            ..
-        } = path
-        {
-            return Ok(jenkins_client
-                .get(&Path::Job {
-                    name: job_name,
-                    configuration,
-                })?
-                .json()?);
-        } else if let Path::InFolder {
-            path: sub_path,
-            folder_name,
-        } = &path
-        {
+        async move {
+            let path = jenkins_client.url_to_path(self.url());
             if let Path::Build {
                 job_name,
                 configuration,
                 ..
-            } = sub_path.as_ref()
+            } = path
             {
-                return Ok(jenkins_client
-                    .get(&Path::InFolder {
-                        folder_name: folder_name.clone(),
-                        path: Box::new(Path::Job {
-                            name: job_name.clone(),
-                            configuration: configuration.clone(),
-                        }),
-                    })?
-                    .json()?);
+                let response = jenkins_client
+                    .get(&Path::Job {
+                        name: job_name,
+                        configuration,
+                    })
+                    .await?
+                    .json()
+                    .await?;
+                return Ok(response);
+            } else if let Path::InFolder {
+                path: sub_path,
+                folder_name,
+            } = &path
+            {
+                if let Path::Build {
+                    job_name,
+                    configuration,
+                    ..
+                } = sub_path.as_ref()
+                {
+                    let response = jenkins_client
+                        .get(&Path::InFolder {
+                            folder_name: folder_name.clone(),
+                            path: Box::new(Path::Job {
+                                name: job_name.clone(),
+                                configuration: configuration.clone(),
+                            }),
+                        })
+                        .await?
+                        .json()
+                        .await?;
+                    return Ok(response);
+                }
             }
+            Err(client::Error::InvalidUrl {
+                url: self.url().to_string(),
+                expected: client::error::ExpectedType::Build,
+            }
+            .into())
         }
-        Err(client::Error::InvalidUrl {
-            url: self.url().to_string(),
-            expected: client::error::ExpectedType::Build,
-        }
-        .into())
     }
 
     /// Get the console output from a `Build`
-    fn get_console(&self, jenkins_client: &Jenkins) -> Result<String> {
-        let path = jenkins_client.url_to_path(self.url());
-        if let Path::Build {
-            job_name,
-            number,
-            configuration,
-        } = path
-        {
-            return Ok(jenkins_client
-                .get(&Path::ConsoleText {
-                    job_name,
-                    number,
-                    configuration,
-                    folder_name: None,
-                })?
-                .text()?);
-        } else if let Path::InFolder {
-            path: sub_path,
-            folder_name,
-        } = &path
-        {
+    fn get_console(
+        &self,
+        jenkins_client: &Jenkins,
+    ) -> impl std::future::Future<Output = Result<String>> {
+        async move {
+            let path = jenkins_client.url_to_path(self.url());
             if let Path::Build {
                 job_name,
                 number,
                 configuration,
-            } = sub_path.as_ref()
+            } = path
             {
-                return Ok(jenkins_client
+                let response = jenkins_client
                     .get(&Path::ConsoleText {
-                        job_name: job_name.clone(),
-                        number: number.clone(),
-                        configuration: configuration.clone(),
-                        folder_name: Some(folder_name.clone()),
-                    })?
-                    .text()?);
+                        job_name,
+                        number,
+                        configuration,
+                        folder_name: None,
+                    })
+                    .await?
+                    .text()
+                    .await?;
+                return Ok(response);
+            } else if let Path::InFolder {
+                path: sub_path,
+                folder_name,
+            } = &path
+            {
+                if let Path::Build {
+                    job_name,
+                    number,
+                    configuration,
+                } = sub_path.as_ref()
+                {
+                    let response = jenkins_client
+                        .get(&Path::ConsoleText {
+                            job_name: job_name.clone(),
+                            number: number.clone(),
+                            configuration: configuration.clone(),
+                            folder_name: Some(folder_name.clone()),
+                        })
+                        .await?
+                        .text()
+                        .await?;
+                    return Ok(response);
+                }
             }
-        }
 
-        Err(client::Error::InvalidUrl {
-            url: self.url().to_string(),
-            expected: client::error::ExpectedType::Build,
+            Err(client::Error::InvalidUrl {
+                url: self.url().to_string(),
+                expected: client::error::ExpectedType::Build,
+            }
+            .into())
         }
-        .into())
     }
 }
 

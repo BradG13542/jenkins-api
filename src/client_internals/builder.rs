@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use reqwest::{self, blocking::Client, Url};
+use reqwest::{self, Client, Url};
 
 use super::{Jenkins, User};
 use crate::client::Result;

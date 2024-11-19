@@ -138,39 +138,44 @@ impl super::Jenkins {
     ///     last_build: LastBuild,
     /// }
     ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// #    let jenkins = JenkinsBuilder::new("http://localhost:8080")
     /// #        .with_user("user", Some("password"))
     /// #        .build()?;
-    /// let _: LastBuildOfJob = jenkins.get_object_as(
-    ///     jenkins_api::client::Path::Job {
-    ///         name: "job name",
-    ///         configuration: None,
-    ///     },
-    ///     jenkins_api::client::TreeBuilder::new()
-    ///         .with_field("displayName")
-    ///         .with_field(
-    ///             jenkins_api::client::TreeBuilder::object("lastBuild")
-    ///                 .with_subfield("number")
-    ///                 .with_subfield("duration")
-    ///                 .with_subfield("result"),
-    ///         )
-    ///         .build(),
-    /// )?;
+    /// let _: LastBuildOfJob =
+    ///     jenkins.get_object_as(
+    ///         jenkins_api::client::Path::Job {
+    ///             name: "job name",
+    ///             configuration: None,
+    ///         },
+    ///         jenkins_api::client::TreeBuilder::new()
+    ///             .with_field("displayName")
+    ///             .with_field(
+    ///                 jenkins_api::client::TreeBuilder::object("lastBuild")
+    ///                     .with_subfield("number")
+    ///                     .with_subfield("duration")
+    ///                 .   with_subfield("result"),
+    ///             )
+    ///             .build(),
+    ///     ).await?;
     /// #    Ok(())
     /// # }
     /// ```
     ///
-    pub fn get_object_as<Q, T>(&self, object: Path, parameters: Q) -> Result<T>
+    pub async fn get_object_as<Q, T>(&self, object: Path<'_>, parameters: Q) -> Result<T>
     where
         Q: Into<Option<AdvancedQuery>>,
         for<'de> T: Deserialize<'de>,
     {
-        Ok(self
+        let response = self
             .get_with_params(
                 &object.into(),
                 parameters.into().map(InternalAdvancedQueryParams::from),
-            )?
-            .json()?)
+            )
+            .await?
+            .json()
+            .await?;
+        Ok(response)
     }
 }
