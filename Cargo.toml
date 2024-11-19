@@ -22,7 +22,7 @@ serde_urlencoded = "0.7"
 urlencoding = "1.1"
 regex = "1.4"
 log = "0.4"
-thiserror = "1.0"
+thiserror = "2.0"
 
 [dependencies.reqwest]
 default-features = false
