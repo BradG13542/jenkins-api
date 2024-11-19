@@ -138,7 +138,7 @@ impl ListView {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::View { name } = path {
             let _ = jenkins_client.post(&Path::AddJobToView {
-                job_name: Name::Name(&job_name.into().0),
+                job_name: Name::Name(job_name.into().0),
                 view_name: name,
             })?;
             Ok(())
@@ -159,7 +159,7 @@ impl ListView {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::View { name } = path {
             let _ = jenkins_client.post(&Path::RemoveJobFromView {
-                job_name: Name::Name(&job_name.into().0),
+                job_name: Name::Name(job_name.into().0),
                 view_name: name,
             })?;
             Ok(())
@@ -181,7 +181,7 @@ impl Jenkins {
     {
         Ok(self
             .get(&Path::View {
-                name: Name::Name(&view_name.into().0),
+                name: Name::Name(view_name.into().0),
             })?
             .json()?)
     }
@@ -193,8 +193,8 @@ impl Jenkins {
         J: Into<JobName<'a>>,
     {
         let _ = self.post(&Path::AddJobToView {
-            job_name: Name::Name(&job_name.into().0),
-            view_name: Name::Name(&view_name.into().0),
+            job_name: Name::Name(job_name.into().0),
+            view_name: Name::Name(view_name.into().0),
         })?;
         Ok(())
     }
@@ -206,8 +206,8 @@ impl Jenkins {
         J: Into<JobName<'a>>,
     {
         let _ = self.post(&Path::AddJobToView {
-            job_name: Name::Name(&job_name.into().0),
-            view_name: Name::Name(&view_name.into().0),
+            job_name: Name::Name(job_name.into().0),
+            view_name: Name::Name(view_name.into().0),
         })?;
         Ok(())
     }

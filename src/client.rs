@@ -68,9 +68,9 @@ pub enum Path<'a> {
     },
 }
 
-impl<'a> Into<PrivatePath<'a>> for Path<'a> {
-    fn into(self) -> PrivatePath<'a> {
-        match self {
+impl<'a> From<Path<'a>> for PrivatePath<'a> {
+    fn from(value: Path<'a>) -> Self {
+        match value {
             Path::Home => PrivatePath::Home,
             Path::View { name } => PrivatePath::View {
                 name: Name::Name(name),
@@ -80,7 +80,7 @@ impl<'a> Into<PrivatePath<'a>> for Path<'a> {
                 configuration,
             } => PrivatePath::Job {
                 name: Name::Name(name),
-                configuration: configuration.map(|v| Name::Name(v)),
+                configuration: configuration.map(Name::Name),
             },
             Path::Build {
                 job_name,
@@ -89,7 +89,7 @@ impl<'a> Into<PrivatePath<'a>> for Path<'a> {
             } => PrivatePath::Build {
                 job_name: Name::Name(job_name),
                 number,
-                configuration: configuration.map(|v| Name::Name(v)),
+                configuration: configuration.map(Name::Name),
             },
             Path::Queue => PrivatePath::Queue,
             Path::QueueItem { id } => PrivatePath::QueueItem { id },
@@ -100,7 +100,7 @@ impl<'a> Into<PrivatePath<'a>> for Path<'a> {
             } => PrivatePath::MavenArtifactRecord {
                 job_name: Name::Name(job_name),
                 number,
-                configuration: configuration.map(|v| Name::Name(v)),
+                configuration: configuration.map(Name::Name),
             },
             Path::Computers => PrivatePath::Computers,
             Path::Computer { name } => PrivatePath::Computer {

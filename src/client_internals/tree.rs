@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde::{Serialize, Serializer};
 
 /// Jenkins tree query parameter
@@ -16,11 +18,12 @@ impl Serialize for TreeQueryParam {
         serializer.serialize_str(&self.to_string())
     }
 }
-impl ToString for TreeQueryParam {
-    fn to_string(&self) -> String {
+impl Display for TreeQueryParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (self.keyname.as_ref(), self.subkeys.len()) {
-            (Some(keyname), 0) => keyname.clone(),
-            (Some(keyname), _) => format!(
+            (Some(keyname), 0) => write!(f, "{}", keyname),
+            (Some(keyname), _) => write!(
+                f,
                 "{}[{}]",
                 keyname,
                 self.subkeys
@@ -29,12 +32,15 @@ impl ToString for TreeQueryParam {
                     .collect::<Vec<_>>()
                     .join(",")
             ),
-            (None, _) => self
-                .subkeys
-                .iter()
-                .map(TreeQueryParam::to_string)
-                .collect::<Vec<_>>()
-                .join(","),
+            (None, _) => write!(
+                f,
+                "{}",
+                self.subkeys
+                    .iter()
+                    .map(TreeQueryParam::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
         }
     }
 }
@@ -87,22 +93,22 @@ impl TreeBuilder {
         self.tree
     }
 }
-impl Into<TreeQueryParam> for TreeBuilder {
-    fn into(self) -> TreeQueryParam {
-        self.build()
+impl From<TreeBuilder> for TreeQueryParam {
+    fn from(value: TreeBuilder) -> Self {
+        value.build()
     }
 }
-impl<'a> Into<TreeQueryParam> for &'a str {
-    fn into(self) -> TreeQueryParam {
+impl<'a> From<&'a str> for TreeQueryParam {
+    fn from(value: &'a str) -> Self {
         TreeQueryParam {
-            keyname: Some(self.to_string()),
+            keyname: Some(value.to_string()),
             subkeys: vec![],
         }
     }
 }
-impl Into<Option<super::AdvancedQuery>> for TreeQueryParam {
-    fn into(self) -> Option<super::AdvancedQuery> {
-        Some(super::AdvancedQuery::Tree(self))
+impl From<TreeQueryParam> for Option<super::AdvancedQuery> {
+    fn from(value: TreeQueryParam) -> Self {
+        Some(super::AdvancedQuery::Tree(value))
     }
 }
 impl Default for TreeBuilder {

@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{fmt::Display, marker::PhantomData};
 
 use serde::{self, Deserialize, Serialize};
 
@@ -103,19 +103,19 @@ pub enum BuildNumber {
     /// Build number
     Number(u32),
     /// Unknown alias
-    UnknwonAlias(String),
+    UnknownAlias(String),
 }
-impl ToString for BuildNumber {
-    fn to_string(&self) -> String {
+impl Display for BuildNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BuildNumber::LastBuild => "lastBuild".to_string(),
-            BuildNumber::LastSuccessfulBuild => "lastSuccessfulBuild".to_string(),
-            BuildNumber::LastStableBuild => "lastStableBuild".to_string(),
-            BuildNumber::LastCompletedBuild => "lastCompletedBuild".to_string(),
-            BuildNumber::LastFailedBuild => "lastFailedBuild".to_string(),
-            BuildNumber::LastUnsuccessfulBuild => "lastUnsuccessfulBuild".to_string(),
-            BuildNumber::Number(n) => n.to_string(),
-            BuildNumber::UnknwonAlias(s) => s.to_string(),
+            BuildNumber::LastBuild => write!(f, "lastBuild"),
+            BuildNumber::LastSuccessfulBuild => write!(f, "lastSuccessfulBuild"),
+            BuildNumber::LastStableBuild => write!(f, "lastStableBuild"),
+            BuildNumber::LastCompletedBuild => write!(f, "lastCompletedBuild"),
+            BuildNumber::LastFailedBuild => write!(f, "lastFailedBuild"),
+            BuildNumber::LastUnsuccessfulBuild => write!(f, "lastUnsuccessfulBuild"),
+            BuildNumber::Number(n) => write!(f, "{}", n),
+            BuildNumber::UnknownAlias(s) => write!(f, "{}", s),
         }
     }
 }
@@ -128,7 +128,7 @@ impl<'a> From<&'a str> for BuildNumber {
             "lastCompletedBuild" => BuildNumber::LastCompletedBuild,
             "lastFailedBuild" => BuildNumber::LastFailedBuild,
             "lastUnsuccessfulBuild" => BuildNumber::LastUnsuccessfulBuild,
-            _ => BuildNumber::UnknwonAlias(v.to_string()),
+            _ => BuildNumber::UnknownAlias(v.to_string()),
         }
     }
 }
@@ -176,7 +176,7 @@ pub trait Build {
     where
         for<'de> Self::ParentJob: Deserialize<'de>,
     {
-        let path = jenkins_client.url_to_path(&self.url());
+        let path = jenkins_client.url_to_path(self.url());
         if let Path::Build {
             job_name,
             configuration,
@@ -220,7 +220,7 @@ pub trait Build {
 
     /// Get the console output from a `Build`
     fn get_console(&self, jenkins_client: &Jenkins) -> Result<String> {
-        let path = jenkins_client.url_to_path(&self.url());
+        let path = jenkins_client.url_to_path(self.url());
         if let Path::Build {
             job_name,
             number,

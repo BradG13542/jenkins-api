@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use super::Jenkins;
 use crate::build;
 
@@ -10,11 +12,11 @@ pub enum Name<'a> {
     UrlEncodedName(&'a str),
 }
 
-impl<'a> ToString for Name<'a> {
-    fn to_string(&self) -> String {
+impl<'a> Display for Name<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
-            Name::Name(name) => urlencoding::encode(name),
-            Name::UrlEncodedName(name) => name.to_string(),
+            Name::Name(name) => write!(f, "{}", urlencoding::encode(name)),
+            Name::UrlEncodedName(name) => write!(f, "{}", name),
         }
     }
 }
@@ -89,143 +91,112 @@ pub enum Path<'a> {
     },
     CrumbIssuer,
 }
-
-impl<'a> ToString for Path<'a> {
-    fn to_string(&self) -> String {
+impl<'a> Display for Path<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
-            Path::Home => "".to_string(),
-            Path::View { ref name } => format!("/view/{}", name.to_string()),
+            Path::Home => Ok(()),
+            Path::View { ref name } => write!(f, "/view/{}", name),
             Path::AddJobToView {
                 ref job_name,
                 ref view_name,
-            } => format!(
-                "/view/{}/addJobToView?name={}",
-                view_name.to_string(),
-                job_name.to_string()
-            ),
+            } => write!(f, "/view/{}/addJobToView?name={}", view_name, job_name),
             Path::RemoveJobFromView {
                 ref job_name,
                 ref view_name,
-            } => format!(
-                "/view/{}/removeJobFromView?name={}",
-                view_name.to_string(),
-                job_name.to_string()
-            ),
+            } => write!(f, "/view/{}/removeJobFromView?name={}", view_name, job_name),
             Path::Job {
                 ref name,
                 configuration: Some(ref configuration),
-            } => format!("/job/{}/{}", name.to_string(), configuration.to_string()),
+            } => write!(f, "/job/{}/{}", name, configuration),
             Path::Job {
                 ref name,
                 configuration: None,
-            } => format!("/job/{}", name.to_string()),
-            Path::BuildJob { ref name } => format!("/job/{}/build", name.to_string()),
+            } => write!(f, "/job/{}", name),
+            Path::BuildJob { ref name } => write!(f, "/job/{}/build", name),
             Path::BuildJobWithParameters { ref name } => {
-                format!("/job/{}/buildWithParameters", name.to_string())
+                write!(f, "/job/{}/buildWithParameters", name)
             }
-            Path::PollSCMJob { ref name } => format!("/job/{}/polling", name.to_string()),
-            Path::JobEnable { ref name } => format!("/job/{}/enable", name.to_string()),
-            Path::JobDisable { ref name } => format!("/job/{}/disable", name.to_string()),
+            Path::PollSCMJob { ref name } => write!(f, "/job/{}/polling", name),
+            Path::JobEnable { ref name } => write!(f, "/job/{}/enable", name),
+            Path::JobDisable { ref name } => write!(f, "/job/{}/disable", name),
             Path::Build {
                 ref job_name,
                 ref number,
                 configuration: None,
-            } => format!("/job/{}/{}", job_name.to_string(), number.to_string()),
+            } => write!(f, "/job/{}/{}", job_name, number),
             Path::Build {
                 ref job_name,
                 ref number,
                 configuration: Some(ref configuration),
-            } => format!(
-                "/job/{}/{}/{}",
-                job_name.to_string(),
-                configuration.to_string(),
-                number.to_string()
-            ),
+            } => write!(f, "/job/{}/{}/{}", job_name, configuration, number),
             Path::ConsoleText {
                 ref job_name,
                 ref number,
                 configuration: None,
                 folder_name: None,
-            } => format!(
-                "/job/{}/{}/consoleText",
-                job_name.to_string(),
-                number.to_string()
-            ),
+            } => write!(f, "/job/{}/{}/consoleText", job_name, number),
             Path::ConsoleText {
                 ref job_name,
                 ref number,
                 configuration: Some(ref configuration),
                 folder_name: None,
-            } => format!(
+            } => write!(
+                f,
                 "/job/{}/{}/{}/consoleText",
-                job_name.to_string(),
-                configuration.to_string(),
-                number.to_string()
+                job_name, configuration, number
             ),
             Path::ConsoleText {
                 ref job_name,
                 ref number,
                 configuration: None,
                 folder_name: Some(ref folder_name),
-            } => format!(
+            } => write!(
+                f,
                 "/job/{}/job/{}/{}/consoleText",
-                folder_name.to_string(),
-                job_name.to_string(),
-                number.to_string()
+                folder_name, job_name, number
             ),
             Path::ConsoleText {
                 ref job_name,
                 ref number,
                 configuration: Some(ref configuration),
                 folder_name: Some(ref folder_name),
-            } => format!(
+            } => write!(
+                f,
                 "/job/{}/job/{}/{}/{}/consoleText",
-                folder_name.to_string(),
-                job_name.to_string(),
-                configuration.to_string(),
-                number.to_string()
+                folder_name, job_name, configuration, number
             ),
             Path::ConfigXML {
                 ref job_name,
                 folder_name: None,
-            } => format!("/job/{}/config.xml", job_name.to_string(),),
+            } => write!(f, "/job/{}/config.xml", job_name),
             Path::ConfigXML {
                 ref job_name,
                 folder_name: Some(ref folder_name),
-            } => format!(
-                "/job/{}/job/{}/config.xml",
-                folder_name.to_string(),
-                job_name.to_string(),
-            ),
-            Path::Queue => "/queue".to_string(),
-            Path::QueueItem { ref id } => format!("/queue/item/{}", id),
+            } => write!(f, "/job/{}/job/{}/config.xml", folder_name, job_name,),
+            Path::Queue => write!(f, "/queue"),
+            Path::QueueItem { ref id } => write!(f, "/queue/item/{}", id),
             Path::MavenArtifactRecord {
                 ref job_name,
                 ref number,
                 configuration: None,
-            } => format!(
-                "/job/{}/{}/mavenArtifacts",
-                job_name.to_string(),
-                number.to_string()
-            ),
+            } => write!(f, "/job/{}/{}/mavenArtifacts", job_name, number),
             Path::MavenArtifactRecord {
                 ref job_name,
                 ref number,
                 configuration: Some(ref configuration),
-            } => format!(
+            } => write!(
+                f,
                 "/job/{}/{}/{}/mavenArtifacts",
-                job_name.to_string(),
-                configuration.to_string(),
-                number.to_string()
+                job_name, configuration, number
             ),
             Path::InFolder {
                 ref folder_name,
                 ref path,
-            } => format!("/job/{}{}", folder_name.to_string(), path.to_string()),
-            Path::Computers => "/computer/api/json".to_string(),
-            Path::Computer { ref name } => format!("/computer/{}/api/json", name.to_string()),
-            Path::Raw { path } => path.to_string(),
-            Path::CrumbIssuer => "/crumbIssuer".to_string(),
+            } => write!(f, "/job/{}{}", folder_name, path),
+            Path::Computers => write!(f, "/computer/api/json"),
+            Path::Computer { ref name } => write!(f, "/computer/{}/api/json", name),
+            Path::Raw { path } => write!(f, "{}", path),
+            Path::CrumbIssuer => write!(f, "/crumbIssuer"),
         }
     }
 }

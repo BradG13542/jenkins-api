@@ -36,7 +36,7 @@ impl Jenkins {
     {
         Ok(self
             .get(&Path::Computer {
-                name: Name::Name(&computer_name.into().0),
+                name: Name::Name(computer_name.into().0),
             })?
             .json()?)
     }

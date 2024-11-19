@@ -10,7 +10,6 @@
     unused_qualifications,
     missing_docs,
     unused_extern_crates,
-    unused_qualifications,
     unused_results
 )]
 #![allow(clippy::type_repetition_in_bounds)]
