@@ -21,8 +21,9 @@ macro_rules! specialize {
         impl $common {
             #[doc = "Read the object as one of it's specialization implementing $trait"]
             #[allow(unused_qualifications)]
-            pub fn as_variant<T: Class + $trait>(&self) -> std::result::Result<T, serde_json::Error>
+            pub fn as_variant<T>(&self) -> std::result::Result<T, serde_json::Error>
             where
+                T: Class + $trait,
                 for<'de> T: Deserialize<'de>,
             {
                 let value = serde_json::to_value(self)?;

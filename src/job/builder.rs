@@ -27,7 +27,7 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
     where
         T: Job,
     {
-        let path = jenkins_client.url_to_path(&job.url());
+        let path = jenkins_client.url_to_path(job.url());
         if let Path::Job {
             name,
             configuration: None,
@@ -89,9 +89,9 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
                 let bound_cause = self.cause.unwrap_or("");
                 let bound_delay = format!("{}", self.delay.unwrap_or(0));
                 let mut qps: Vec<(&str, &str)> = Vec::new();
-                qps.push(("token", &token));
+                qps.push(("token", token));
                 if self.cause.is_some() {
-                    qps.push(("cause", &bound_cause));
+                    qps.push(("cause", bound_cause));
                 }
                 if self.delay.is_some() {
                     qps.push(("delay", &bound_delay));

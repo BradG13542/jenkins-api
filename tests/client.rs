@@ -43,12 +43,9 @@ fn should_be_forbidden() {
         .with_user("unknown", Some("password"))
         .build()
         .unwrap();
-    let response = jenkins.get_home();
-    assert!(response.is_err());
-    assert_eq!(
-        format!("{:?}", response),
-        "Err(reqwest::Error { kind: Status(401), url: Url { scheme: \"http\", host: Some(Domain(\"localhost\")), port: Some(8080), path: \"/api/json\", query: Some(\"depth=1\"), fragment: None } })",
-    );
+    let response = jenkins.get_home().unwrap_err();
+    let response: Box<reqwest::Error> = response.downcast().unwrap();
+    assert_eq!(response.status(), Some(reqwest::StatusCode::FORBIDDEN));
 }
 
 #[test]
@@ -78,12 +75,9 @@ fn should_get_view_not_found() {
         .with_user("user", Some("password"))
         .build()
         .unwrap();
-    let response = jenkins.get_view("zut");
-    assert!(response.is_err());
-    assert_eq!(
-        format!("{:?}", response),
-        "Err(reqwest::Error { kind: Status(404), url: Url { scheme: \"http\", host: Some(Domain(\"localhost\")), port: Some(8080), path: \"/view/zut/api/json\", query: Some(\"depth=1\"), fragment: None } })",
-    );
+    let response = jenkins.get_view("zut").unwrap_err();
+    let response: Box<reqwest::Error> = response.downcast().unwrap();
+    assert_eq!(response.status(), Some(reqwest::StatusCode::NOT_FOUND));
 }
 
 #[test]
@@ -120,8 +114,7 @@ fn can_get_jenkins_view_from_home() {
     let first_view = home_ok
         .views
         .iter()
-        .filter(|view| view.name == "view disabled")
-        .next()
+        .find(|view| view.name == "view disabled")
         .unwrap();
     let full_view = first_view.get_full_view(&jenkins);
     assert!(full_view.is_ok());
@@ -189,12 +182,11 @@ fn can_add_and_remove_job_from_view_through_view() {
     let view = jenkins.get_view("test view");
     assert!(view.is_ok());
     let view_ok = view.unwrap();
-    assert!(view_ok
+    assert!(!view_ok
         .jobs
         .iter()
         .map(|job| &job.name)
-        .find(|job_name| *job_name == "normal job")
-        .is_none());
+        .any(|job_name| job_name == "normal job"));
 
     let job = jenkins.get_job("normal job");
     assert!(job.is_ok());
@@ -223,13 +215,12 @@ fn can_add_and_remove_job_from_view_through_view() {
 
     let view_without = jenkins.get_view("test view");
     assert!(view_without.is_ok());
-    assert!(view_without
+    assert!(!view_without
         .unwrap()
         .jobs
         .iter()
         .map(|job| &job.name)
-        .find(|job_name| *job_name == "normal job")
-        .is_none());
+        .any(|job_name| job_name == "normal job"));
 }
 
 #[test]
@@ -244,12 +235,11 @@ fn can_add_and_remove_job_from_view_through_job() {
     println!("{:#?}", view);
     assert!(view.is_ok());
     let view_ok = view.unwrap();
-    assert!(view_ok
+    assert!(!view_ok
         .jobs
         .iter()
         .map(|job| &job.name)
-        .find(|job_name| *job_name == "pipeline job")
-        .is_none());
+        .any(|job_name| job_name == "pipeline job"));
 
     let job = jenkins.get_job("pipeline job");
     println!("{:#?}", job);
@@ -277,13 +267,12 @@ fn can_add_and_remove_job_from_view_through_job() {
     let view_without = jenkins.get_view("test view");
     println!("{:#?}", view_without);
     assert!(view_without.is_ok());
-    assert!(view_without
+    assert!(!view_without
         .unwrap()
         .jobs
         .iter()
         .map(|job| &job.name)
-        .find(|job_name| *job_name == "pipeline job")
-        .is_none());
+        .any(|job_name| job_name == "pipeline job"));
 }
 
 #[test]

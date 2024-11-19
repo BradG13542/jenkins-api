@@ -67,7 +67,7 @@ impl JenkinsBuilder {
     pub fn with_user(mut self, login: &str, password: Option<&str>) -> Self {
         self.user = Some(User {
             username: login.to_string(),
-            password: password.map(std::string::ToString::to_string),
+            password: password.map(Into::into),
         });
         self
     }
@@ -96,7 +96,7 @@ mod tests {
 
         assert_eq!(jenkins_client.url, JENKINS_URL);
         assert_eq!(jenkins_client.user, None);
-        assert_eq!(jenkins_client.csrf_enabled, true);
+        assert!(jenkins_client.csrf_enabled);
     }
 
     #[test]
@@ -105,7 +105,7 @@ mod tests {
 
         assert_eq!(jenkins_client.url, JENKINS_URL);
         assert_eq!(jenkins_client.user, None);
-        assert_eq!(jenkins_client.csrf_enabled, true);
+        assert!(jenkins_client.csrf_enabled);
     }
 
     #[test]
@@ -114,6 +114,6 @@ mod tests {
 
         assert_eq!(jenkins_client.url, JENKINS_URL);
         assert_eq!(jenkins_client.user, None);
-        assert_eq!(jenkins_client.csrf_enabled, false);
+        assert!(!jenkins_client.csrf_enabled);
     }
 }

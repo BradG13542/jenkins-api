@@ -141,7 +141,7 @@ pub trait Job {
 
     /// Enable a `Job`. It may need to be refreshed as it may have been updated
     fn enable(&self, jenkins_client: &Jenkins) -> Result<()> {
-        let path = jenkins_client.url_to_path(&self.url());
+        let path = jenkins_client.url_to_path(self.url());
         if let Path::Job {
             name,
             configuration: None,
@@ -160,7 +160,7 @@ pub trait Job {
 
     /// Disable a `Job`. It may need to be refreshed as it may have been updated
     fn disable(&self, jenkins_client: &Jenkins) -> Result<()> {
-        let path = jenkins_client.url_to_path(&self.url());
+        let path = jenkins_client.url_to_path(self.url());
         if let Path::Job {
             name,
             configuration: None,
@@ -182,7 +182,7 @@ pub trait Job {
     where
         V: Into<ViewName<'a>>,
     {
-        let path = jenkins_client.url_to_path(&self.url());
+        let path = jenkins_client.url_to_path(self.url());
         if let Path::Job {
             name,
             configuration: None,
@@ -207,7 +207,7 @@ pub trait Job {
     where
         V: Into<ViewName<'a>>,
     {
-        let path = jenkins_client.url_to_path(&self.url());
+        let path = jenkins_client.url_to_path(self.url());
         if let Path::Job {
             name,
             configuration: None,
@@ -229,7 +229,7 @@ pub trait Job {
 
     /// Get the config.xml file for this job
     fn get_config_xml(&self, jenkins_client: &Jenkins) -> Result<String> {
-        let path = jenkins_client.url_to_path(&self.url());
+        let path = jenkins_client.url_to_path(self.url());
         if let Path::Job { name, .. } = path {
             return Ok(jenkins_client
                 .get(&Path::ConfigXML {
@@ -440,6 +440,7 @@ macro_rules! job_buildable_with_common_fields_and_impl {
                 )*)*
                 private_fields {
                     /// Properties of the job
+                    #[allow(dead_code)]
                     property: Vec<CommonProperty>,
                 }
             }
@@ -491,7 +492,7 @@ pub trait BuildableJob: Job + Sized {
 pub trait SCMPollable: Job + Sized {
     /// Poll configured SCM for changes
     fn poll_scm(&self, jenkins_client: &Jenkins) -> Result<()> {
-        let path = jenkins_client.url_to_path(&self.url());
+        let path = jenkins_client.url_to_path(self.url());
         if let Path::Job {
             name,
             configuration: None,

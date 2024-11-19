@@ -1,7 +1,6 @@
 //! Jenkins Client
 
 use std::fmt::Debug;
-use std::string::ToString;
 
 use log::{debug, warn};
 use regex::Regex;
@@ -105,23 +104,25 @@ impl Jenkins {
     }
 
     pub(crate) fn get(&self, path: &Path) -> Result<Response> {
-        self.get_with_params(path, &[("depth", &self.depth.to_string())])
+        self.get_with_params(path, [("depth", &self.depth.to_string())])
     }
 
     pub(crate) fn get_with_params<T: Serialize>(&self, path: &Path, qps: T) -> Result<Response> {
         let query = self
             .client
-            .get(&self.url_api_json(&path.to_string()))
+            .get(self.url_api_json(&path.to_string()))
             .query(&qps);
-        Ok(Self::error_for_status(self.send(query)?)?)
+        let resp = self.send(query)?;
+        Self::error_for_status(resp)
     }
 
     pub(crate) fn post(&self, path: &Path) -> Result<Response> {
-        let mut request_builder = self.client.post(&self.url(&path.to_string()));
+        let mut request_builder = self.client.post(self.url(&path.to_string()));
 
         request_builder = self.add_csrf_to_request(request_builder)?;
 
-        Ok(Self::error_for_status(self.send(request_builder)?)?)
+        let resp = self.send(request_builder)?;
+        Self::error_for_status(resp)
     }
 
     pub(crate) fn post_with_body<T: Into<Body> + Debug>(
@@ -130,7 +131,7 @@ impl Jenkins {
         body: T,
         qps: &[(&str, &str)],
     ) -> Result<Response> {
-        let mut request_builder = self.client.post(&self.url(&path.to_string()));
+        let mut request_builder = self.client.post(self.url(&path.to_string()));
 
         request_builder = self.add_csrf_to_request(request_builder)?;
 
@@ -202,12 +203,13 @@ mod tests {
 
     #[test]
     fn can_post_with_body() {
-        let jenkins_client = crate::JenkinsBuilder::new(&mockito::server_url())
+        let mut server = mockito::Server::new();
+        let jenkins_client = crate::JenkinsBuilder::new(&server.url())
             .disable_csrf()
             .build()
             .unwrap();
 
-        let _mock = mockito::mock("POST", "/mypath").with_body("ok").create();
+        let _mock = server.mock("POST", "/mypath").with_body("ok").create();
 
         let response =
             jenkins_client.post_with_body(&super::Path::Raw { path: "/mypath" }, "body", &[]);
@@ -218,12 +220,14 @@ mod tests {
 
     #[test]
     fn can_post_with_body_and_get_error_state() {
-        let jenkins_client = crate::JenkinsBuilder::new(&mockito::server_url())
+        let mut server = mockito::Server::new();
+        let jenkins_client = crate::JenkinsBuilder::new(&server.url())
             .disable_csrf()
             .build()
             .unwrap();
 
-        let _mock = mockito::mock("POST", "/error-IllegalStateException")
+        let _mock = server
+            .mock("POST", "/error-IllegalStateException")
             .with_status(500)
             .with_body("hviqsuvnqsodjfsqjdgo java.lang.IllegalStateException: my error\nvzfjsd")
             .create();
@@ -245,12 +249,14 @@ mod tests {
 
     #[test]
     fn can_post_with_body_and_get_error_argument() {
-        let jenkins_client = crate::JenkinsBuilder::new(&mockito::server_url())
+        let mut server = mockito::Server::new();
+        let jenkins_client = crate::JenkinsBuilder::new(&server.url())
             .disable_csrf()
             .build()
             .unwrap();
 
-        let _mock = mockito::mock("POST", "/error-IllegalArgumentException")
+        let _mock = server
+            .mock("POST", "/error-IllegalArgumentException")
             .with_status(500)
             .with_body("hviqsuvnqsodjfsqjdgo java.lang.IllegalArgumentException: my error\nvzfjsd")
             .create();
@@ -272,12 +278,14 @@ mod tests {
 
     #[test]
     fn can_post_with_body_and_get_error_new() {
-        let jenkins_client = crate::JenkinsBuilder::new(&mockito::server_url())
+        let mut server = mockito::Server::new();
+        let jenkins_client = crate::JenkinsBuilder::new(&server.url())
             .disable_csrf()
             .build()
             .unwrap();
 
-        let _mock = mockito::mock("POST", "/error-NewException")
+        let _mock = server
+            .mock("POST", "/error-NewException")
             .with_status(500)
             .with_body("hviqsuvnqsodjfsqjdgo java.lang.NewException: my error\nvzfjsd")
             .create();
@@ -293,20 +301,22 @@ mod tests {
         assert!(response.is_err());
         assert_eq!(
             format!("{:?}", response),
-            r#"Err(reqwest::Error { kind: Status(500), url: Url { scheme: "http", host: Some(Ipv4(127.0.0.1)), port: Some(1234), path: "/error-NewException", query: None, fragment: None } })"#,
+            format!(
+                r#"Err(reqwest::Error {{ kind: Status(500), url: "{}/error-NewException" }})"#,
+                server.url()
+            ),
         );
     }
 
     #[test]
     fn can_post_with_query_params() {
-        let jenkins_client = crate::JenkinsBuilder::new(&mockito::server_url())
+        let mut server = mockito::Server::new();
+        let jenkins_client = crate::JenkinsBuilder::new(&server.url())
             .disable_csrf()
             .build()
             .unwrap();
 
-        let mock = mockito::mock("POST", "/mypath?a=1")
-            .with_body("ok")
-            .create();
+        let mock = server.mock("POST", "/mypath?a=1").with_body("ok").create();
 
         let response = jenkins_client.post_with_body(
             &super::Path::Raw { path: "/mypath" },

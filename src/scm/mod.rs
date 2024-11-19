@@ -10,6 +10,7 @@ pub use self::browser::*;
 /// SCM merge options
 #[derive(Default, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct MergeOptions {
     /// Merge strategy
     merge_strategy: String,
