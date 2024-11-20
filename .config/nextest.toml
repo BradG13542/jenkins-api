@@ -1,0 +1,17 @@
+[profile.dev]
+fail-fast = false
+retries = { backoff = "exponential", count = 4, delay = "5s", jitter = true, max-delay = "45s" }
+
+[profile.dev.junit]
+path = "test_report.xml"
+store-success-output = true
+store-failure-output = true
+
+[profile.release]
+fail-fast = false
+retries = { backoff = "exponential", count = 4, delay = "5s", jitter = true, max-delay = "45s" }
+
+[profile.release.junit]
+path = "test_report.xml"
+store-success-output = true
+store-failure-output = true

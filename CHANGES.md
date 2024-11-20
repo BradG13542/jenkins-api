@@ -1,6 +1,6 @@
 # Changes
 
-# 0.7.0 (2019/11/17à
+# 0.7.0 (2019/11/17)
 
 * Removed dependency to failure
 
