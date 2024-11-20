@@ -1,0 +1,56 @@
+name: Build Rust
+
+on: [pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+  checks: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # Install Rust (must happen before cache: rustc version is part of key)
+      - run: rustup toolchain install stable --profile minimal
+
+      # Restore Rust cache
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.7.3
+        with:
+          cache-all-crates: "true"
+          cache-on-failure: "true"
+
+      - run: rustup component add clippy
+
+      - run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: Start dev jenkins server
+        run: docker run -d --rm -p 8080:8080 --name dev_jenkins mockersf/jenkins-api-rs-tests && sleep 10
+
+      - name: Cargo Check
+        run: cargo check
+
+      - name: Run Clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+
+      - name: Run tests
+        run: cargo nextest run --verbose --all-features --profile dev && mv target/nextest/dev/test_report.xml test_report.xml
+
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: success() || failure() # always run even if the previous step fails
+        with:
+          report_paths: "test_report.xml"
+
+      - name: Stop dev jenkins server
+        run: docker stop dev_jenkins
