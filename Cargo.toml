@@ -9,7 +9,7 @@ documentation = "https://docs.rs/jenkins_api"
 keywords = ["jenkins"]
 license = "MIT"
 readme = "README.md"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 url = "2.2"
