@@ -9,9 +9,12 @@ extern crate jenkins_api;
 
 use spectral::prelude::*;
 
-use jenkins_api::build::Build;
 use jenkins_api::job::{BuildableJob, Job, SCMPollable};
 use jenkins_api::JenkinsBuilder;
+use jenkins_api::{
+    build::Build,
+    client::error::{ClientError, RequestError},
+};
 use std::time;
 
 use std::sync::Once;
@@ -44,7 +47,9 @@ async fn should_be_unauthorized() {
         .build()
         .unwrap();
     let response = jenkins.get_home().await.unwrap_err();
-    let response: Box<reqwest::Error> = response.downcast().unwrap();
+    let ClientError::Request(RequestError::Http(response)) = response else {
+        panic!("expected http error, got {}", response);
+    };
     assert_eq!(response.status(), Some(reqwest::StatusCode::UNAUTHORIZED));
 }
 
@@ -76,7 +81,9 @@ async fn should_get_view_not_found() {
         .build()
         .unwrap();
     let response = jenkins.get_view("zut").await.unwrap_err();
-    let response: Box<reqwest::Error> = response.downcast().unwrap();
+    let ClientError::Request(RequestError::Http(response)) = response else {
+        panic!("expected http error, got {}", response)
+    };
     assert_eq!(response.status(), Some(reqwest::StatusCode::NOT_FOUND));
 }
 
@@ -392,7 +399,6 @@ async fn can_build_job_with_delay() {
 
     let triggered = jenkins
         .job_builder("delayed job")
-        .unwrap()
         .with_delay(5000)
         .send()
         .await;
@@ -423,7 +429,6 @@ async fn can_build_job_remotely() {
 
     let triggered = jenkins
         .job_builder("remote job")
-        .unwrap()
         .remotely_with_token_and_cause("remote_token", None)
         .unwrap()
         .send()
@@ -532,7 +537,6 @@ async fn can_build_job_with_parameters() {
 
     let triggered = jenkins
         .job_builder("parameterized job")
-        .unwrap()
         .with_parameters(&params)
         .unwrap()
         .send()

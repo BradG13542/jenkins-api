@@ -2,12 +2,15 @@
 
 use serde::{self, Deserialize};
 
-use crate::client_internals::path::{Name, Path as PrivatePath};
-use crate::client_internals::InternalAdvancedQueryParams;
+use crate::client_internals::{
+    path::{Name, Path as PrivatePath},
+    ClientError,
+};
+use crate::client_internals::{InternalAdvancedQueryParams, RequestError};
 
 // pub use client_internals::path::Name;
+pub use crate::client_internals::error;
 pub use crate::client_internals::AdvancedQuery;
-pub use crate::client_internals::{error, Error, Result};
 pub use crate::client_internals::{TreeBuilder, TreeQueryParam};
 
 use crate::build;
@@ -163,7 +166,11 @@ impl super::Jenkins {
     /// # }
     /// ```
     ///
-    pub async fn get_object_as<Q, T>(&self, object: Path<'_>, parameters: Q) -> Result<T>
+    pub async fn get_object_as<Q, T>(
+        &self,
+        object: Path<'_>,
+        parameters: Q,
+    ) -> Result<T, ClientError>
     where
         Q: Into<Option<AdvancedQuery>>,
         for<'de> T: Deserialize<'de>,
@@ -173,9 +180,12 @@ impl super::Jenkins {
                 &object.into(),
                 parameters.into().map(InternalAdvancedQueryParams::from),
             )
-            .await?
+            .await
+            .map_err(|e| ClientError::Request(RequestError::Http(e)))?
             .json()
-            .await?;
+            .await
+            .map_err(|e| ClientError::Request(RequestError::Http(e)))?;
+
         Ok(response)
     }
 }

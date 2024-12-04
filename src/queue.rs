@@ -2,12 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::action::CommonAction;
-use crate::build::ShortBuild;
-use crate::client::{self, Result};
+use crate::client;
 use crate::client_internals::Path;
 use crate::job::ShortJob;
 use crate::Jenkins;
+use crate::{action::CommonAction, client_internals::ClientError};
+use crate::{build::ShortBuild, client_internals::RequestError};
 
 /// Short Queue Item that is returned when building a job
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -25,16 +25,24 @@ pub struct ShortQueueItem {
 }
 impl ShortQueueItem {
     /// Get the full details of a `QueueItem` matching the `ShortQueueItem`
-    pub async fn get_full_queue_item(&self, jenkins_client: &Jenkins) -> Result<QueueItem> {
+    pub async fn get_full_queue_item(
+        &self,
+        jenkins_client: &Jenkins,
+    ) -> Result<QueueItem, ClientError> {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::QueueItem { .. } = path {
-            Ok(jenkins_client.get(&path).await?.json().await?)
+            jenkins_client
+                .get(&path)
+                .await
+                .map_err(|e| ClientError::Request(RequestError::Http(e)))?
+                .json()
+                .await
+                .map_err(|e| ClientError::Request(RequestError::Http(e)))
         } else {
-            Err(client::Error::InvalidUrl {
+            Err(ClientError::InvalidUrl {
                 url: self.url.clone(),
                 expected: client::error::ExpectedType::QueueItem,
-            }
-            .into())
+            })
         }
     }
 }
@@ -72,16 +80,21 @@ pub struct QueueItem {
 }
 impl QueueItem {
     /// Refresh a `QueueItem`, consuming the existing one and returning a new `QueueItem`
-    pub async fn refresh_item(self, jenkins_client: &Jenkins) -> Result<Self> {
+    pub async fn refresh_item(self, jenkins_client: &Jenkins) -> Result<Self, ClientError> {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::QueueItem { .. } = path {
-            Ok(jenkins_client.get(&path).await?.json().await?)
+            jenkins_client
+                .get(&path)
+                .await
+                .map_err(|e| ClientError::Request(RequestError::Http(e)))?
+                .json()
+                .await
+                .map_err(|e| ClientError::Request(RequestError::Http(e)))
         } else {
-            Err(client::Error::InvalidUrl {
+            Err(ClientError::InvalidUrl {
                 url: self.url.clone(),
                 expected: client::error::ExpectedType::QueueItem,
-            }
-            .into())
+            })
         }
     }
 }
@@ -96,12 +109,12 @@ pub struct Queue {
 
 impl Jenkins {
     /// Get the Jenkins items queue
-    pub async fn get_queue(&self) -> Result<Queue> {
-        Ok(self.get(&Path::Queue).await?.json().await?)
+    pub async fn get_queue(&self) -> Result<Queue, reqwest::Error> {
+        self.get(&Path::Queue).await?.json().await
     }
 
     /// Get a queue item from it's ID
-    pub async fn get_queue_item(&self, id: i32) -> Result<QueueItem> {
-        Ok(self.get(&Path::QueueItem { id }).await?.json().await?)
+    pub async fn get_queue_item(&self, id: i32) -> Result<QueueItem, reqwest::Error> {
+        self.get(&Path::QueueItem { id }).await?.json().await
     }
 }

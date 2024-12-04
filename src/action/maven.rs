@@ -2,9 +2,9 @@
 
 use serde::Deserialize;
 
-use crate::client::{self, Result};
-use crate::client_internals::path::Path;
+use crate::client_internals::{path::Path, RequestError};
 use crate::Jenkins;
+use crate::{client, client_internals::ClientError};
 
 /// Artifact produced by a build
 #[derive(Deserialize, Debug)]
@@ -41,17 +41,22 @@ impl ShortMavenArtifactRecord {
     pub async fn get_full_artifact_record(
         &self,
         jenkins_client: &Jenkins,
-    ) -> Result<MavenArtifactRecord> {
+    ) -> Result<MavenArtifactRecord, ClientError> {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::MavenArtifactRecord { .. } = path {
-            let response = jenkins_client.get(&path).await?.json().await?;
+            let response = jenkins_client
+                .get(&path)
+                .await
+                .map_err(|e| ClientError::Request(RequestError::Http(e)))?
+                .json()
+                .await
+                .map_err(|e| ClientError::Request(RequestError::Http(e)))?;
             Ok(response)
         } else {
-            Err(client::Error::InvalidUrl {
+            Err(ClientError::InvalidUrl {
                 url: self.url.clone(),
                 expected: client::error::ExpectedType::MavenArtifactRecord,
-            }
-            .into())
+            })
         }
     }
 }

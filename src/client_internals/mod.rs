@@ -2,15 +2,13 @@
 
 use std::fmt::Debug;
 
-use log::{debug, warn};
-use regex::Regex;
-use reqwest::{
-    header::HeaderValue, header::CONTENT_TYPE, Body, Client, RequestBuilder, Response, StatusCode,
-};
+use log::debug;
+use reqwest::{header::HeaderValue, header::CONTENT_TYPE, Body, Client, RequestBuilder, Response};
 use serde::Serialize;
 
-mod errors;
-pub use self::errors::{Error, Result};
+pub mod errors;
+pub use errors::{ClientError, RequestError};
+
 mod builder;
 pub mod path;
 pub use self::builder::JenkinsBuilder;
@@ -23,6 +21,7 @@ pub use self::tree::{TreeBuilder, TreeQueryParam};
 pub mod error {
     pub use super::errors::Action;
     pub use super::errors::ExpectedType;
+    pub use super::errors::{ClientError, CrumbError, RequestError, SetupError};
 }
 
 #[derive(Debug, PartialEq)]
@@ -82,7 +81,7 @@ impl Jenkins {
         format!("{}{}", self.url, endpoint)
     }
 
-    async fn send(&self, mut request_builder: RequestBuilder) -> Result<Response> {
+    async fn send(&self, mut request_builder: RequestBuilder) -> Result<Response, reqwest::Error> {
         if let Some(ref user) = self.user {
             request_builder =
                 request_builder.basic_auth(user.username.clone(), user.password.clone());
@@ -90,19 +89,11 @@ impl Jenkins {
         let query = request_builder.build()?;
         debug!("sending {} {}", query.method(), query.url());
 
-        let response = self.client.execute(query).await?;
+        let response = self.client.execute(query).await?.error_for_status()?;
         Ok(response)
     }
 
-    fn error_for_status(response: Response) -> Result<Response> {
-        let status = response.status();
-        if status.is_client_error() || status.is_server_error() {
-            warn!("got an error: {}", status);
-        }
-        Ok(response.error_for_status()?)
-    }
-
-    pub(crate) async fn get(&self, path: &Path<'_>) -> Result<Response> {
+    pub(crate) async fn get(&self, path: &Path<'_>) -> Result<Response, reqwest::Error> {
         self.get_with_params(path, [("depth", &self.depth.to_string())])
             .await
     }
@@ -111,22 +102,26 @@ impl Jenkins {
         &self,
         path: &Path<'_>,
         qps: T,
-    ) -> Result<Response> {
+    ) -> Result<Response, reqwest::Error> {
         let query = self
             .client
             .get(self.url_api_json(&path.to_string()))
             .query(&qps);
         let resp = self.send(query).await?;
-        Self::error_for_status(resp)
+        Ok(resp)
     }
 
-    pub(crate) async fn post(&self, path: &Path<'_>) -> Result<Response> {
+    pub(crate) async fn post(&self, path: &Path<'_>) -> Result<Response, RequestError> {
         let mut request_builder = self.client.post(self.url(&path.to_string()));
 
-        request_builder = self.add_csrf_to_request(request_builder).await?;
+        request_builder = self
+            .add_csrf_to_request(request_builder)
+            .await
+            .map_err(RequestError::Crumb)?;
 
         let resp = self.send(request_builder).await?;
-        Self::error_for_status(resp)
+
+        Ok(resp)
     }
 
     pub(crate) async fn post_with_body<T: Into<Body> + Debug>(
@@ -134,7 +129,7 @@ impl Jenkins {
         path: &Path<'_>,
         body: T,
         qps: &[(&str, &str)],
-    ) -> Result<Response> {
+    ) -> Result<Response, RequestError> {
         let mut request_builder = self.client.post(self.url(&path.to_string()));
 
         request_builder = self.add_csrf_to_request(request_builder).await?;
@@ -147,58 +142,7 @@ impl Jenkins {
         request_builder = request_builder.query(qps).body(body);
         let response = self.send(request_builder).await?;
 
-        if response.status() == StatusCode::INTERNAL_SERVER_ERROR {
-            // get the error before reading the body. In this case it can't be OK
-            let error = match response.error_for_status_ref() {
-                Ok(_) => unreachable!(),
-                Err(err) => err,
-            };
-
-            let body = response.text().await?;
-
-            let re = Regex::new(r"java.lang.([a-zA-Z]+): (.*)").unwrap();
-            if let Some(captures) = re.captures(&body) {
-                match captures.get(1).map(|v| v.as_str()) {
-                    Some("IllegalStateException") => {
-                        warn!(
-                            "got an IllegalState error: {}",
-                            captures.get(0).map(|v| v.as_str()).unwrap_or("unspecified")
-                        );
-                        Err(Error::IllegalState {
-                            message: captures
-                                .get(2)
-                                .map(|v| v.as_str())
-                                .unwrap_or("no message")
-                                .to_string(),
-                        })
-                    }
-                    Some("IllegalArgumentException") => {
-                        warn!(
-                            "got an IllegalArgument error: {}",
-                            captures.get(0).map(|v| v.as_str()).unwrap_or("unspecified")
-                        );
-                        Err(Error::IllegalArgument {
-                            message: captures
-                                .get(2)
-                                .map(|v| v.as_str())
-                                .unwrap_or("no message")
-                                .to_string(),
-                        })
-                    }
-                    Some(_) => {
-                        warn!(
-                            "got an Unknwon error: {}",
-                            captures.get(0).map(|v| v.as_str()).unwrap_or("unspecified")
-                        );
-                        Ok(())
-                    }
-                    _ => Ok(()),
-                }?;
-            }
-            Err(error.into())
-        } else {
-            Ok(Self::error_for_status(response)?)
-        }
+        Ok(response)
     }
 }
 
@@ -250,7 +194,10 @@ mod tests {
         assert!(response.is_err());
         assert_eq!(
             format!("{:?}", response),
-            r#"Err(IllegalState { message: "my error" })"#
+            format!(
+                r#"Err(Http(reqwest::Error {{ kind: Status(500), url: "{}/error-IllegalStateException" }}))"#,
+                server.url()
+            )
         );
     }
 
@@ -281,7 +228,10 @@ mod tests {
         assert!(response.is_err());
         assert_eq!(
             format!("{:?}", response),
-            r#"Err(IllegalArgument { message: "my error" })"#
+            format!(
+                r#"Err(Http(reqwest::Error {{ kind: Status(500), url: "{}/error-IllegalArgumentException" }}))"#,
+                server.url()
+            )
         );
     }
 
@@ -313,7 +263,7 @@ mod tests {
         assert_eq!(
             format!("{:?}", response),
             format!(
-                r#"Err(reqwest::Error {{ kind: Status(500), url: "{}/error-NewException" }})"#,
+                r#"Err(Http(reqwest::Error {{ kind: Status(500), url: "{}/error-NewException" }}))"#,
                 server.url()
             ),
         );

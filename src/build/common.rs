@@ -2,10 +2,13 @@ use std::{fmt::Display, marker::PhantomData};
 
 use serde::{self, Deserialize, Serialize};
 
-use crate::helpers::Class;
+use crate::{
+    client_internals::{ClientError, RequestError},
+    helpers::Class,
+};
 
 use crate::action::CommonAction;
-use crate::client::{self, Result};
+use crate::client;
 use crate::client_internals::path::Path;
 use crate::job::{CommonJob, Job};
 use crate::Jenkins;
@@ -40,22 +43,33 @@ where
     for<'de> T: Deserialize<'de>,
 {
     /// Get the full details of a `Build` matching the `ShortBuild`
-    pub async fn get_full_build(&self, jenkins_client: &Jenkins) -> Result<T> {
+    pub async fn get_full_build(&self, jenkins_client: &Jenkins) -> Result<T, ClientError> {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::Build { .. } = path {
-            let response = jenkins_client.get(&path).await?.json().await?;
+            let response = jenkins_client
+                .get(&path)
+                .await
+                .map_err(|e| ClientError::Request(RequestError::Http(e)))?
+                .json()
+                .await
+                .map_err(|e| ClientError::Request(RequestError::Http(e)))?;
             return Ok(response);
         } else if let Path::InFolder { path: sub_path, .. } = &path {
             if let Path::Build { .. } = sub_path.as_ref() {
-                let response = jenkins_client.get(&path).await?.json().await?;
+                let response = jenkins_client
+                    .get(&path)
+                    .await
+                    .map_err(|e| ClientError::Request(RequestError::Http(e)))?
+                    .json()
+                    .await
+                    .map_err(|e| ClientError::Request(RequestError::Http(e)))?;
                 return Ok(response);
             }
         }
-        Err(client::Error::InvalidUrl {
+        Err(ClientError::InvalidUrl {
             url: self.url.clone(),
             expected: client::error::ExpectedType::Build,
-        }
-        .into())
+        })
     }
 }
 
@@ -177,7 +191,7 @@ pub trait Build {
     fn get_job(
         &self,
         jenkins_client: &Jenkins,
-    ) -> impl std::future::Future<Output = Result<Self::ParentJob>>
+    ) -> impl std::future::Future<Output = Result<Self::ParentJob, ClientError>>
     where
         for<'de> Self::ParentJob: Deserialize<'de>,
     {
@@ -194,9 +208,11 @@ pub trait Build {
                         name: job_name,
                         configuration,
                     })
-                    .await?
+                    .await
+                    .map_err(|e| ClientError::Request(RequestError::Http(e)))?
                     .json()
-                    .await?;
+                    .await
+                    .map_err(|e| ClientError::Request(RequestError::Http(e)))?;
                 return Ok(response);
             } else if let Path::InFolder {
                 path: sub_path,
@@ -217,17 +233,18 @@ pub trait Build {
                                 configuration: configuration.clone(),
                             }),
                         })
-                        .await?
+                        .await
+                        .map_err(|e| ClientError::Request(RequestError::Http(e)))?
                         .json()
-                        .await?;
+                        .await
+                        .map_err(|e| ClientError::Request(RequestError::Http(e)))?;
                     return Ok(response);
                 }
             }
-            Err(client::Error::InvalidUrl {
+            Err(ClientError::InvalidUrl {
                 url: self.url().to_string(),
                 expected: client::error::ExpectedType::Build,
-            }
-            .into())
+            })
         }
     }
 
@@ -235,7 +252,7 @@ pub trait Build {
     fn get_console(
         &self,
         jenkins_client: &Jenkins,
-    ) -> impl std::future::Future<Output = Result<String>> {
+    ) -> impl std::future::Future<Output = Result<String, ClientError>> {
         async move {
             let path = jenkins_client.url_to_path(self.url());
             if let Path::Build {
@@ -251,9 +268,11 @@ pub trait Build {
                         configuration,
                         folder_name: None,
                     })
-                    .await?
+                    .await
+                    .map_err(|e| ClientError::Request(RequestError::Http(e)))?
                     .text()
-                    .await?;
+                    .await
+                    .map_err(|e| ClientError::Request(RequestError::Http(e)))?;
                 return Ok(response);
             } else if let Path::InFolder {
                 path: sub_path,
@@ -273,18 +292,19 @@ pub trait Build {
                             configuration: configuration.clone(),
                             folder_name: Some(folder_name.clone()),
                         })
-                        .await?
+                        .await
+                        .map_err(|e| ClientError::Request(RequestError::Http(e)))?
                         .text()
-                        .await?;
+                        .await
+                        .map_err(|e| ClientError::Request(RequestError::Http(e)))?;
                     return Ok(response);
                 }
             }
 
-            Err(client::Error::InvalidUrl {
+            Err(ClientError::InvalidUrl {
                 url: self.url().to_string(),
                 expected: client::error::ExpectedType::Build,
-            }
-            .into())
+            })
         }
     }
 }

@@ -12,7 +12,7 @@ pub enum Name<'a> {
     UrlEncodedName(&'a str),
 }
 
-impl<'a> Display for Name<'a> {
+impl Display for Name<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             Name::Name(name) => write!(f, "{}", urlencoding::encode(name)),
@@ -91,7 +91,7 @@ pub enum Path<'a> {
     },
     CrumbIssuer,
 }
-impl<'a> Display for Path<'a> {
+impl Display for Path<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             Path::Home => Ok(()),

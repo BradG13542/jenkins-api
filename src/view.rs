@@ -2,9 +2,12 @@
 
 use serde::{self, Deserialize, Serialize};
 
-use crate::helpers::Class;
+use crate::{
+    client_internals::{ClientError, RequestError},
+    helpers::Class,
+};
 
-use crate::client::{self, Result};
+use crate::client;
 use crate::client_internals::{Name, Path};
 use crate::job::{JobName, ShortJob};
 use crate::property::CommonProperty;
@@ -30,16 +33,21 @@ pub struct ShortView {
 
 impl ShortView {
     /// Get the full details of a `View` matching the `ShortView`
-    pub async fn get_full_view(&self, jenkins_client: &Jenkins) -> Result<CommonView> {
+    pub async fn get_full_view(&self, jenkins_client: &Jenkins) -> Result<CommonView, ClientError> {
         let path = jenkins_client.url_to_path(&self.url);
         if let Path::View { .. } = path {
-            Ok(jenkins_client.get(&path).await?.json().await?)
+            jenkins_client
+                .get(&path)
+                .await
+                .map_err(|e| ClientError::Request(RequestError::Http(e)))?
+                .json()
+                .await
+                .map_err(|e| ClientError::Request(RequestError::Http(e)))
         } else {
-            Err(client::Error::InvalidUrl {
+            Err(ClientError::InvalidUrl {
                 url: self.url.clone(),
                 expected: client::error::ExpectedType::View,
-            }
-            .into())
+            })
         }
     }
 }
@@ -131,7 +139,11 @@ impl View for ListView {
 
 impl ListView {
     /// Add the job `job_name` to this view
-    pub async fn add_job<'a, J>(&self, jenkins_client: &Jenkins, job_name: J) -> Result<()>
+    pub async fn add_job<'a, J>(
+        &self,
+        jenkins_client: &Jenkins,
+        job_name: J,
+    ) -> Result<(), ClientError>
     where
         J: Into<JobName<'a>>,
     {
@@ -142,19 +154,23 @@ impl ListView {
                     job_name: Name::Name(job_name.into().0),
                     view_name: name,
                 })
-                .await?;
+                .await
+                .map_err(ClientError::Request)?;
             Ok(())
         } else {
-            Err(client::Error::InvalidUrl {
+            Err(ClientError::InvalidUrl {
                 url: self.url.clone(),
                 expected: client::error::ExpectedType::View,
-            }
-            .into())
+            })
         }
     }
 
     /// Remove the job `job_name` from this view
-    pub async fn remove_job<'a, J>(&self, jenkins_client: &Jenkins, job_name: J) -> Result<()>
+    pub async fn remove_job<'a, J>(
+        &self,
+        jenkins_client: &Jenkins,
+        job_name: J,
+    ) -> Result<(), ClientError>
     where
         J: Into<JobName<'a>>,
     {
@@ -165,35 +181,40 @@ impl ListView {
                     job_name: Name::Name(job_name.into().0),
                     view_name: name,
                 })
-                .await?;
+                .await
+                .map_err(ClientError::Request)?;
             Ok(())
         } else {
-            Err(client::Error::InvalidUrl {
+            Err(ClientError::InvalidUrl {
                 url: self.url.clone(),
                 expected: client::error::ExpectedType::View,
-            }
-            .into())
+            })
         }
     }
 }
 
 impl Jenkins {
     /// Get a `View`
-    pub async fn get_view<'a, V>(&self, view_name: V) -> Result<CommonView>
+    pub async fn get_view<'a, V>(&self, view_name: V) -> Result<CommonView, ClientError>
     where
         V: Into<ViewName<'a>>,
     {
-        Ok(self
-            .get(&Path::View {
-                name: Name::Name(view_name.into().0),
-            })
-            .await?
-            .json()
-            .await?)
+        self.get(&Path::View {
+            name: Name::Name(view_name.into().0),
+        })
+        .await
+        .map_err(|e| ClientError::Request(RequestError::Http(e)))?
+        .json()
+        .await
+        .map_err(|e| ClientError::Request(RequestError::Http(e)))
     }
 
     /// Add the job `job_name` to the view `view_name`
-    pub async fn add_job_to_view<'a, 'b, V, J>(&self, view_name: V, job_name: J) -> Result<()>
+    pub async fn add_job_to_view<'a, 'b, V, J>(
+        &self,
+        view_name: V,
+        job_name: J,
+    ) -> Result<(), ClientError>
     where
         V: Into<ViewName<'a>>,
         J: Into<JobName<'a>>,
@@ -203,12 +224,17 @@ impl Jenkins {
                 job_name: Name::Name(job_name.into().0),
                 view_name: Name::Name(view_name.into().0),
             })
-            .await?;
+            .await
+            .map_err(ClientError::Request)?;
         Ok(())
     }
 
     /// Remove the job `job_name` from the view `view_name`
-    pub async fn remove_job_from_view<'a, 'b, V, J>(&self, view_name: V, job_name: J) -> Result<()>
+    pub async fn remove_job_from_view<'a, 'b, V, J>(
+        &self,
+        view_name: V,
+        job_name: J,
+    ) -> Result<(), ClientError>
     where
         V: Into<ViewName<'a>>,
         J: Into<JobName<'a>>,
@@ -218,7 +244,8 @@ impl Jenkins {
                 job_name: Name::Name(job_name.into().0),
                 view_name: Name::Name(view_name.into().0),
             })
-            .await?;
+            .await
+            .map_err(ClientError::Request)?;
         Ok(())
     }
 }

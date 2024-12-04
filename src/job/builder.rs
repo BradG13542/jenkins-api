@@ -4,11 +4,11 @@ use reqwest::header::LOCATION;
 
 use serde::{self, Serialize};
 
-use crate::client::{self, Result};
-use crate::client_internals::{Name, Path};
+use crate::client_internals::{Name, Path, RequestError};
 use crate::job::{Job, JobName};
 use crate::queue::ShortQueueItem;
 use crate::Jenkins;
+use crate::{client, client_internals::ClientError};
 
 /// Helper to build a job
 #[derive(Debug)]
@@ -22,8 +22,7 @@ pub struct JobBuilder<'a, 'b, 'c, 'd> {
 }
 
 impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
-    #[allow(clippy::new_ret_no_self)]
-    pub(crate) fn new<T>(job: &'a T, jenkins_client: &'b Jenkins) -> Result<Self>
+    pub(crate) fn new<T>(job: &'a T, jenkins_client: &'b Jenkins) -> Result<Self, ClientError>
     where
         T: Job,
     {
@@ -61,29 +60,28 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
                 });
             }
         }
-        Err(client::Error::InvalidUrl {
+        Err(ClientError::InvalidUrl {
             url: job.url().to_string(),
             expected: client::error::ExpectedType::Job,
-        }
-        .into())
+        })
     }
 
-    pub(crate) fn new_from_job_name<J>(name: J, jenkins_client: &'b Jenkins) -> Result<Self>
+    pub(crate) fn new_from_job_name<J>(name: J, jenkins_client: &'b Jenkins) -> Self
     where
         J: Into<JobName<'a>>,
     {
-        Ok(JobBuilder {
+        JobBuilder {
             job_name: Name::Name(name.into().0),
             jenkins_client,
             delay: None,
             cause: None,
             token: None,
             parameters: None,
-        })
+        }
     }
 
     /// Trigger the build
-    pub async fn send(self) -> Result<ShortQueueItem> {
+    pub async fn send(self) -> Result<ShortQueueItem, ClientError> {
         let response = match (self.token, self.parameters) {
             (Some(token), None) => {
                 let bound_cause = self.cause.unwrap_or("");
@@ -104,7 +102,8 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
                         },
                         &qps,
                     )
-                    .await?
+                    .await
+                    .map_err(|e| ClientError::Request(RequestError::Http(e)))?
             }
             (Some(token), Some(parameters)) => {
                 let bound_delay = format!("{}", self.delay.unwrap_or(0));
@@ -161,11 +160,10 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
                 extra_fields: None,
             })
         } else {
-            Err(client::Error::InvalidUrl {
+            Err(ClientError::InvalidUrl {
                 url: "".to_string(),
                 expected: client::error::ExpectedType::QueueItem,
-            }
-            .into())
+            })
         }
     }
 
@@ -180,7 +178,7 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
         mut self,
         token: &'d str,
         cause: Option<&'c str>,
-    ) -> Result<Self> {
+    ) -> Result<Self, ClientError> {
         self.token = Some(token);
         self.cause = cause;
         Ok(self)
@@ -199,11 +197,15 @@ impl<'a, 'b, 'c, 'd> JobBuilder<'a, 'b, 'c, 'd> {
     /// [`Error::IllegalArgument`](../enum.Error.html#variant.IllegalArgument)
     ///
     /// This methods will return an error if serializing `parameters` fails.
-    pub fn with_parameters<T: Serialize>(mut self, parameters: &T) -> Result<Self> {
+    pub fn with_parameters<T: Serialize>(mut self, parameters: &T) -> Result<Self, ClientError> {
         if self.token.is_some() {
-            return Err(client::Error::UnsupportedBuildConfiguration.into());
+            return Err(ClientError::UnsupportedBuildConfiguration);
         }
-        self.parameters = Some(serde_urlencoded::to_string(parameters)?);
+        let parameters =
+            serde_urlencoded::to_string(parameters).map_err(|e| ClientError::IllegalArgument {
+                message: e.to_string(),
+            })?;
+        self.parameters = Some(parameters);
         Ok(self)
     }
 }
