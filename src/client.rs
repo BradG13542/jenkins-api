@@ -76,23 +76,23 @@ impl<'a> From<Path<'a>> for PrivatePath<'a> {
         match value {
             Path::Home => PrivatePath::Home,
             Path::View { name } => PrivatePath::View {
-                name: Name::Name(name),
+                name: Name::UrlEncodedName(name),
             },
             Path::Job {
                 name,
                 configuration,
             } => PrivatePath::Job {
-                name: Name::Name(name),
-                configuration: configuration.map(Name::Name),
+                name: Name::UrlEncodedName(name),
+                configuration: configuration.map(Name::UrlEncodedName),
             },
             Path::Build {
                 job_name,
                 number,
                 configuration,
             } => PrivatePath::Build {
-                job_name: Name::Name(job_name),
+                job_name: Name::UrlEncodedName(job_name),
                 number,
-                configuration: configuration.map(Name::Name),
+                configuration: configuration.map(Name::UrlEncodedName),
             },
             Path::Queue => PrivatePath::Queue,
             Path::QueueItem { id } => PrivatePath::QueueItem { id },
@@ -101,13 +101,13 @@ impl<'a> From<Path<'a>> for PrivatePath<'a> {
                 number,
                 configuration,
             } => PrivatePath::MavenArtifactRecord {
-                job_name: Name::Name(job_name),
+                job_name: Name::UrlEncodedName(job_name),
                 number,
-                configuration: configuration.map(Name::Name),
+                configuration: configuration.map(Name::UrlEncodedName),
             },
             Path::Computers => PrivatePath::Computers,
             Path::Computer { name } => PrivatePath::Computer {
-                name: Name::Name(name),
+                name: Name::UrlEncodedName(name),
             },
             Path::Raw { path } => PrivatePath::Raw { path },
         }
