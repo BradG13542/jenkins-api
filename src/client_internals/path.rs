@@ -230,7 +230,7 @@ impl Jenkins {
                 } else {
                     Path::Job {
                         name: Name::UrlEncodedName(&path[5..slashes[2]]),
-                        configuration: Some(Name::UrlEncodedName(last_part)),
+                        configuration: Some(Name::Name(last_part)),
                     }
                 }
             }
@@ -254,9 +254,7 @@ impl Jenkins {
                         number: build::BuildNumber::Number(
                             path[(slashes[3] + 1)..(path.len() - 1)].parse().unwrap(),
                         ),
-                        configuration: Some(Name::UrlEncodedName(
-                            &path[(slashes[2] + 1)..slashes[3]],
-                        )),
+                        configuration: Some(Name::Name(&path[(slashes[2] + 1)..slashes[3]])),
                     }
                 }
             }
@@ -272,9 +270,7 @@ impl Jenkins {
                         number: build::BuildNumber::Number(
                             path[(slashes[3] + 1)..slashes[4]].parse().unwrap(),
                         ),
-                        configuration: Some(Name::UrlEncodedName(
-                            &path[(slashes[2] + 1)..slashes[3]],
-                        )),
+                        configuration: Some(Name::Name(&path[(slashes[2] + 1)..slashes[3]])),
                     }
                 }
             }
@@ -282,23 +278,23 @@ impl Jenkins {
                 id: path[(slashes[2] + 1)..(path.len() - 1)].parse().unwrap(),
             },
             ("/job", 0..4) => Path::Job {
-                name: Name::UrlEncodedName(&path[5..(path.len() - 1)]),
-                configuration: None,
+                name: Name::UrlEncodedName(&path[5..slashes[2]]),
+                configuration: Some(Name::Name(&path[slashes[2] + 1..path.len() - 1])),
             },
             ("/job", n) => {
                 if &path[slashes[n - 4]..slashes[n - 3]] == "/job" {
                     if let Ok(build_number) = path[(slashes[n - 2] + 1)..slashes[n - 1]].parse() {
                         return Path::Build {
-                            job_name: Name::UrlEncodedName(&path[5..slashes[n - 2]]),
+                            job_name: Name::Name(&path[5..slashes[2]]),
                             number: build::BuildNumber::Number(build_number),
-                            configuration: None,
+                            configuration: Some(Name::Name(&path[slashes[2] + 1..slashes[n - 2]])),
                         };
                     }
                 }
 
                 Path::Job {
-                    name: Name::UrlEncodedName(&path[5..(path.len() - 1)]),
-                    configuration: None,
+                    name: Name::UrlEncodedName(&path[5..slashes[2]]),
+                    configuration: Some(Name::Name(&path[slashes[2] + 1..path.len() - 1])),
                 }
             }
             (_, _) => Path::Raw { path },
