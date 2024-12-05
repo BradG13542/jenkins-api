@@ -1,13 +1,47 @@
 use std::fmt;
 
+use reqwest::header;
 use thiserror::Error;
 
-/// Wrapper `Result` type
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+#[derive(Debug, Error)]
+/// Errors that can be thrown at client setup
+pub enum SetupError {
+    #[error("invalid url: {0}")]
+    /// Invalid Jenkins url
+    InvalidUrl(#[from] url::ParseError),
+    #[error("client: {0}")]
+    /// Underlying client failure
+    Client(#[from] reqwest::Error),
+}
+
+#[derive(Debug, Error)]
+/// Errors that can be thrown when getting a crumb
+pub enum CrumbError {
+    #[error("invalid name: {0}")]
+    /// Invalid crumb header name
+    InvalidName(#[from] header::InvalidHeaderName),
+    #[error("invalid value: {0}")]
+    /// Invalid crumb header value
+    InvalidValue(#[from] header::InvalidHeaderValue),
+    #[error("crumb issuer: {0}")]
+    /// Error during crumb request to Jenkins
+    Http(#[from] reqwest::Error),
+}
+
+#[derive(Debug, Error)]
+/// Errors that can be thrown when sending a request
+pub enum RequestError {
+    #[error("{0}")]
+    /// Failed to set up crumb
+    Crumb(#[from] CrumbError),
+    #[error("http: {0}")]
+    /// Failed to send request
+    Http(#[from] reqwest::Error),
+}
 
 /// Errors that can be thrown
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum ClientError {
     #[error("invalid url for {expected}: {url}")]
     ///  Error thrown when a link between objects has an unexpected format
     InvalidUrl {
@@ -31,13 +65,6 @@ pub enum Error {
         message: String,
     },
 
-    #[error("illegal state: '{message}'")]
-    ///  Error thrown when building a job with invalid parameters
-    IllegalState {
-        /// Exception message provided by Jenkins
-        message: String,
-    },
-
     #[error("can't build a job remotely with parameters")]
     ///  Error when trying to remotely build a job with parameters
     UnsupportedBuildConfiguration,
@@ -52,6 +79,10 @@ pub enum Error {
         /// Action
         action: Action,
     },
+
+    #[error("request: {0}")]
+    /// Error when trying to complete some request
+    Request(#[from] RequestError),
 }
 
 /// Possible type of URL expected in links between items

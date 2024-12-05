@@ -2,12 +2,15 @@
 
 use serde::{self, Deserialize};
 
-use crate::client_internals::path::{Name, Path as PrivatePath};
-use crate::client_internals::InternalAdvancedQueryParams;
+use crate::client_internals::{
+    path::{Name, Path as PrivatePath},
+    ClientError,
+};
+use crate::client_internals::{InternalAdvancedQueryParams, RequestError};
 
 // pub use client_internals::path::Name;
+pub use crate::client_internals::error;
 pub use crate::client_internals::AdvancedQuery;
-pub use crate::client_internals::{error, Error, Result};
 pub use crate::client_internals::{TreeBuilder, TreeQueryParam};
 
 use crate::build;
@@ -73,23 +76,23 @@ impl<'a> From<Path<'a>> for PrivatePath<'a> {
         match value {
             Path::Home => PrivatePath::Home,
             Path::View { name } => PrivatePath::View {
-                name: Name::Name(name),
+                name: Name::UrlEncodedName(name),
             },
             Path::Job {
                 name,
                 configuration,
             } => PrivatePath::Job {
-                name: Name::Name(name),
-                configuration: configuration.map(Name::Name),
+                name: Name::UrlEncodedName(name),
+                configuration: configuration.map(Name::UrlEncodedName),
             },
             Path::Build {
                 job_name,
                 number,
                 configuration,
             } => PrivatePath::Build {
-                job_name: Name::Name(job_name),
+                job_name: Name::UrlEncodedName(job_name),
                 number,
-                configuration: configuration.map(Name::Name),
+                configuration: configuration.map(Name::UrlEncodedName),
             },
             Path::Queue => PrivatePath::Queue,
             Path::QueueItem { id } => PrivatePath::QueueItem { id },
@@ -98,13 +101,13 @@ impl<'a> From<Path<'a>> for PrivatePath<'a> {
                 number,
                 configuration,
             } => PrivatePath::MavenArtifactRecord {
-                job_name: Name::Name(job_name),
+                job_name: Name::UrlEncodedName(job_name),
                 number,
-                configuration: configuration.map(Name::Name),
+                configuration: configuration.map(Name::UrlEncodedName),
             },
             Path::Computers => PrivatePath::Computers,
             Path::Computer { name } => PrivatePath::Computer {
-                name: Name::Name(name),
+                name: Name::UrlEncodedName(name),
             },
             Path::Raw { path } => PrivatePath::Raw { path },
         }
@@ -163,7 +166,11 @@ impl super::Jenkins {
     /// # }
     /// ```
     ///
-    pub async fn get_object_as<Q, T>(&self, object: Path<'_>, parameters: Q) -> Result<T>
+    pub async fn get_object_as<Q, T>(
+        &self,
+        object: Path<'_>,
+        parameters: Q,
+    ) -> Result<T, ClientError>
     where
         Q: Into<Option<AdvancedQuery>>,
         for<'de> T: Deserialize<'de>,
@@ -173,9 +180,12 @@ impl super::Jenkins {
                 &object.into(),
                 parameters.into().map(InternalAdvancedQueryParams::from),
             )
-            .await?
+            .await
+            .map_err(|e| ClientError::Request(RequestError::Http(e)))?
             .json()
-            .await?;
+            .await
+            .map_err(|e| ClientError::Request(RequestError::Http(e)))?;
+
         Ok(response)
     }
 }

@@ -2,8 +2,7 @@ use std::str::FromStr;
 
 use reqwest::{self, Client, Url};
 
-use super::{Jenkins, User};
-use crate::client::Result;
+use super::{errors::SetupError, Jenkins, User};
 
 /// Builder for Jenkins client
 ///
@@ -45,18 +44,20 @@ impl JenkinsBuilder {
     }
 
     /// Build the Jenkins client
-    pub fn build(self) -> Result<Jenkins> {
-        let url = Url::from_str(&self.url)?;
+    pub fn build(self) -> Result<Jenkins, SetupError> {
+        let url = Url::from_str(&self.url).map_err(SetupError::InvalidUrl)?;
         if url.cannot_be_a_base() {
-            return Err(url::ParseError::RelativeUrlWithoutBase.into());
+            return Err(SetupError::InvalidUrl(
+                url::ParseError::RelativeUrlWithoutBase,
+            ));
         };
         if !url.has_host() {
-            return Err(url::ParseError::EmptyHost.into());
+            return Err(SetupError::InvalidUrl(url::ParseError::EmptyHost));
         }
 
         Ok(Jenkins {
             url: self.url,
-            client: Client::builder().build()?,
+            client: Client::builder().build().map_err(SetupError::Client)?,
             user: self.user,
             csrf_enabled: self.csrf_enabled,
             depth: self.depth,

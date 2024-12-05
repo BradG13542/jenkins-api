@@ -12,7 +12,7 @@ pub enum Name<'a> {
     UrlEncodedName(&'a str),
 }
 
-impl<'a> Display for Name<'a> {
+impl Display for Name<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             Name::Name(name) => write!(f, "{}", urlencoding::encode(name)),
@@ -91,7 +91,7 @@ pub enum Path<'a> {
     },
     CrumbIssuer,
 }
-impl<'a> Display for Path<'a> {
+impl Display for Path<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             Path::Home => Ok(()),
@@ -282,23 +282,27 @@ impl Jenkins {
                 id: path[(slashes[2] + 1)..(path.len() - 1)].parse().unwrap(),
             },
             ("/job", 0..4) => Path::Job {
-                name: Name::UrlEncodedName(&path[5..(path.len() - 1)]),
+                name: Name::UrlEncodedName(&path[5..slashes[2]]),
                 configuration: None,
             },
             ("/job", n) => {
                 if &path[slashes[n - 4]..slashes[n - 3]] == "/job" {
                     if let Ok(build_number) = path[(slashes[n - 2] + 1)..slashes[n - 1]].parse() {
                         return Path::Build {
-                            job_name: Name::UrlEncodedName(&path[5..slashes[n - 2]]),
+                            job_name: Name::UrlEncodedName(&path[5..slashes[2]]),
                             number: build::BuildNumber::Number(build_number),
-                            configuration: None,
+                            configuration: Some(Name::UrlEncodedName(
+                                &path[slashes[2] + 1..slashes[n - 2]],
+                            )),
                         };
                     }
                 }
 
                 Path::Job {
-                    name: Name::UrlEncodedName(&path[5..(path.len() - 1)]),
-                    configuration: None,
+                    name: Name::UrlEncodedName(&path[5..slashes[2]]),
+                    configuration: Some(Name::UrlEncodedName(
+                        &path[slashes[2] + 1..path.len() - 1],
+                    )),
                 }
             }
             (_, _) => Path::Raw { path },

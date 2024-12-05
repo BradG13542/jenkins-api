@@ -1,7 +1,9 @@
 //! Jenkins Builds
 
-use crate::client::Result;
-use crate::client_internals::path::{Name, Path};
+use crate::client_internals::{
+    path::{Name, Path},
+    ClientError, RequestError,
+};
 use crate::job::JobName;
 use crate::Jenkins;
 
@@ -23,7 +25,11 @@ pub use self::multijob::MultiJobBuild;
 
 impl Jenkins {
     /// Get a build from a `job_name` and `build_number`
-    pub async fn get_build<'a, J, B>(&self, job_name: J, build_number: B) -> Result<CommonBuild>
+    pub async fn get_build<'a, J, B>(
+        &self,
+        job_name: J,
+        build_number: B,
+    ) -> Result<CommonBuild, ClientError>
     where
         J: Into<JobName<'a>>,
         B: Into<BuildNumber>,
@@ -34,9 +40,11 @@ impl Jenkins {
                 number: build_number.into(),
                 configuration: None,
             })
-            .await?
+            .await
+            .map_err(|e| ClientError::Request(RequestError::Http(e)))?
             .json()
-            .await?;
+            .await
+            .map_err(|e| ClientError::Request(RequestError::Http(e)))?;
         Ok(response)
     }
 }

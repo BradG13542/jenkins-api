@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::client_internals::{Path, Result};
+use crate::client_internals::{ClientError, Path, RequestError};
 use crate::job::ShortJob;
 use crate::view::ShortView;
 use crate::Jenkins;
@@ -29,7 +29,7 @@ pub enum AgentPort {
 }
 
 impl<'de> Deserialize<'de> for AgentPort {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<AgentPort, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<AgentPort, D::Error>
     where
         D: serde::de::Deserializer<'de>,
     {
@@ -37,35 +37,35 @@ impl<'de> Deserialize<'de> for AgentPort {
     }
 }
 struct AgentPortI32Visitor;
-impl<'de> serde::de::Visitor<'de> for AgentPortI32Visitor {
+impl serde::de::Visitor<'_> for AgentPortI32Visitor {
     type Value = AgentPort;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter.write_str("an integer between -1 and 65536")
     }
 
-    fn visit_i8<E>(self, value: i8) -> std::result::Result<Self::Value, E>
+    fn visit_i8<E>(self, value: i8) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
         self.visit_i64(i64::from(value))
     }
 
-    fn visit_i16<E>(self, value: i16) -> std::result::Result<Self::Value, E>
+    fn visit_i16<E>(self, value: i16) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
         self.visit_i64(i64::from(value))
     }
 
-    fn visit_i32<E>(self, value: i32) -> std::result::Result<Self::Value, E>
+    fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
         self.visit_i64(i64::from(value))
     }
 
-    fn visit_i64<E>(self, value: i64) -> std::result::Result<Self::Value, E>
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
@@ -80,28 +80,28 @@ impl<'de> serde::de::Visitor<'de> for AgentPortI32Visitor {
         }
     }
 
-    fn visit_u8<E>(self, value: u8) -> std::result::Result<Self::Value, E>
+    fn visit_u8<E>(self, value: u8) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
         self.visit_i64(i64::from(value))
     }
 
-    fn visit_u16<E>(self, value: u16) -> std::result::Result<Self::Value, E>
+    fn visit_u16<E>(self, value: u16) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
         self.visit_i64(i64::from(value))
     }
 
-    fn visit_u32<E>(self, value: u32) -> std::result::Result<Self::Value, E>
+    fn visit_u32<E>(self, value: u32) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
         self.visit_i64(i64::from(value))
     }
 
-    fn visit_u64<E>(self, value: u64) -> std::result::Result<Self::Value, E>
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
@@ -146,7 +146,12 @@ pub struct Home {
 
 impl Jenkins {
     /// Get Jenkins `Home`
-    pub async fn get_home(&self) -> Result<Home> {
-        Ok(self.get(&Path::Home).await?.json().await?)
+    pub async fn get_home(&self) -> Result<Home, ClientError> {
+        self.get(&Path::Home)
+            .await
+            .map_err(|e| ClientError::Request(RequestError::Http(e)))?
+            .json()
+            .await
+            .map_err(|e| ClientError::Request(RequestError::Http(e)))
     }
 }
